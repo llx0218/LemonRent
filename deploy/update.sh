@@ -14,4 +14,4 @@ systemctl restart lemonrent-api
 sleep 2
 systemctl is-active lemonrent-api
 curl -s http://127.0.0.1:8100/api/health; echo
-git -C "$APP_DIR" log --oneline -1
+sudo -u lemonrent git -C "$APP_DIR" log --oneline -1
