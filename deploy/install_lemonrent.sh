@@ -18,12 +18,12 @@ command -v npm >/dev/null || apt-get install -y nodejs npm
 id lemonrent >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/lemonrent --shell /usr/sbin/nologin lemonrent
 
 mkdir -p /var/www
-if [ -d "$APP_DIR/.git" ]; then
-  sudo -u lemonrent git -C "$APP_DIR" pull --ff-only
-else
+if [ ! -d "$APP_DIR/.git" ]; then
   git clone --depth 1 "$REPO" "$APP_DIR"
 fi
 chown -R lemonrent:lemonrent "$APP_DIR"
+sudo -u lemonrent env GIT_TERMINAL_PROMPT=0 git -C "$APP_DIR" pull --ff-only \
+  || echo "Could not pull updates (private repo without saved credentials); using the code already in $APP_DIR"
 
 sudo -u lemonrent python3 -m venv "$APP_DIR/.venv"
 sudo -u lemonrent "$APP_DIR/.venv/bin/pip" install --upgrade pip
