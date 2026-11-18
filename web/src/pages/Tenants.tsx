@@ -94,8 +94,8 @@ function TenancyCard({ t, onEdit, onEnd }: { t: Tenancy; onEdit: () => void; onE
           {t.days_left !== null && t.status === "active" && <div className={`tiny ${t.days_left <= 30 ? "down" : "muted"}`}>{t.days_left} days left</div>}</div>
         <div><div className="muted tiny">Rent</div><div className="num">{money(t.monthly_rent)} <span className="muted tiny">due day {t.rent_due_day}</span></div>
           <div className="muted tiny">{UTIL_LABEL[t.utilities_mode]}</div></div>
-        <div><div className="muted tiny">Deposits held</div><div className="num">{money(t.security_deposit + t.utility_deposit)}</div>
-          <div className="muted tiny">{money(t.security_deposit)} security · {money(t.utility_deposit)} utility</div>
+        <div><div className="muted tiny">Deposits held</div><div className="num">{money(t.security_deposit + t.utility_deposit + t.access_card_deposit)}</div>
+          <div className="muted tiny">{money(t.security_deposit)} security · {money(t.utility_deposit)} utility · {money(t.access_card_deposit)} access card</div>
           {t.deposit_returned !== null && <div className="muted tiny">Returned {money(t.deposit_returned)}</div>}</div>
         <div><div className="muted tiny">Balance</div>
           <div className={`num ${t.balance.outstanding > 0 ? "down" : "up"}`} style={{ fontWeight: 700 }}>{t.balance.outstanding > 0 ? money(t.balance.outstanding) : "Paid up"}</div>

@@ -46,11 +46,7 @@ For a private GitHub repo, clone it to `/var/www/LemonRent` yourself first; the 
 ### Updating
 
 ```bash
-cd /var/www/LemonRent && sudo -u lemonrent git pull
-sudo -u lemonrent .venv/bin/pip install -r requirements.txt
-cd web && sudo -u lemonrent env HOME=/var/lib/lemonrent npm ci && sudo -u lemonrent env HOME=/var/lib/lemonrent npm run build && cd ..
-sudo -u lemonrent bash -c 'set -a; . /etc/lemonrent/lemonrent.env; set +a; .venv/bin/alembic upgrade head'
-sudo systemctl restart lemonrent-api
+sudo bash /var/www/LemonRent/deploy/update.sh
 ```
 
 ### Operator commands

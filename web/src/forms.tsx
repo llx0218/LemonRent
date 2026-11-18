@@ -292,6 +292,7 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
     rent_due_day: String(tenancy?.rent_due_day ?? 1),
     security_deposit: str(tenancy?.security_deposit),
     utility_deposit: str(tenancy?.utility_deposit),
+    access_card_deposit: str(tenancy?.access_card_deposit),
     utilities_mode: (tenancy?.utilities_mode ?? "charged") as UtilMode,
     moved_out_on: tenancy?.moved_out_on ?? "",
     deposit_returned: str(tenancy?.deposit_returned),
@@ -316,6 +317,7 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
       rent_due_day: parseInt(f.rent_due_day) || 1,
       security_deposit: num(f.security_deposit),
       utility_deposit: num(f.utility_deposit),
+      access_card_deposit: num(f.access_card_deposit),
       utilities_mode: f.utilities_mode,
       moved_out_on: f.moved_out_on || null,
       deposit_returned: f.deposit_returned === "" ? null : num(f.deposit_returned),
@@ -387,6 +389,7 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
           </Field>
           <Field label="Security deposit"><MoneyInput value={f.security_deposit} onChange={set("security_deposit")} /></Field>
           <Field label="Utility deposit"><MoneyInput value={f.utility_deposit} onChange={set("utility_deposit")} /></Field>
+          <Field label="Access card deposit"><MoneyInput value={f.access_card_deposit} onChange={set("access_card_deposit")} /></Field>
         </div>
         {tenancy && (
           <div className="f3">
@@ -402,7 +405,7 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
 }
 
 export function EndTenancyForm({ tenancy, onClose, onSaved }: { tenancy: Tenancy; onClose: Done; onSaved: Done }) {
-  const deposits = tenancy.security_deposit + tenancy.utility_deposit;
+  const deposits = tenancy.security_deposit + tenancy.utility_deposit + tenancy.access_card_deposit;
   const owed = Math.max(0, tenancy.balance.outstanding);
   const { f, set, ev } = useForm({ moved_out_on: todayMYT(), deposit_returned: str(Math.max(0, deposits - owed)) });
   const s = useSubmit(async () => {
@@ -413,6 +416,7 @@ export function EndTenancyForm({ tenancy, onClose, onSaved }: { tenancy: Tenancy
       rent_due_day: tenancy.rent_due_day,
       security_deposit: tenancy.security_deposit,
       utility_deposit: tenancy.utility_deposit,
+      access_card_deposit: tenancy.access_card_deposit,
       utilities_mode: tenancy.utilities_mode,
       notes: tenancy.notes,
       moved_out_on: f.moved_out_on,

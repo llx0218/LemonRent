@@ -96,6 +96,7 @@ def tenancy_dict(t: Tenancy, today: date, with_records: bool = False) -> dict:
         "start_date": _ds(t.start_date), "end_date": _ds(t.end_date), "moved_out_on": _ds(t.moved_out_on),
         "monthly_rent": fin.f(t.monthly_rent), "rent_due_day": t.rent_due_day,
         "security_deposit": fin.f(t.security_deposit), "utility_deposit": fin.f(t.utility_deposit),
+        "access_card_deposit": fin.f(t.access_card_deposit),
         "deposit_returned": fin.f(t.deposit_returned), "utilities_mode": t.utilities_mode,
         "notes": t.notes, "status": tenancy_status(t, today),
         "days_left": (t.end_date - today).days if t.end_date and not t.moved_out_on else None,
@@ -482,6 +483,7 @@ class TenancyIn(BaseModel):
     rent_due_day: int = Field(default=1, ge=1, le=31)
     security_deposit: Decimal = Money
     utility_deposit: Decimal = Money
+    access_card_deposit: Decimal = Money
     utilities_mode: UtilMode = "charged"
     moved_out_on: Optional[date] = None
     deposit_returned: Optional[Decimal] = OptMoney

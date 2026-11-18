@@ -36,7 +36,7 @@ def test_tenancy_collect_and_returns(owner):
     units = owner.get(f"/api/properties/{pid}").json()["units"]
     r = owner.post("/api/tenancies", headers=H, json={
         "unit_id": units[0]["id"], "start_date": "2026-09-01", "end_date": "2027-08-31",
-        "monthly_rent": 1200, "security_deposit": 2400, "utility_deposit": 600,
+        "monthly_rent": 1200, "security_deposit": 2400, "utility_deposit": 600, "access_card_deposit": 100,
         "tenant": {"name": "Ali", "phone": "0123456789", "id_number": "900101-14-5678"}})
     assert r.status_code == 200, r.text
     tid = r.json()["id"]
@@ -77,6 +77,7 @@ def test_tenancy_collect_and_returns(owner):
     assert t["id_number"] == "900101-14-5678"
     assert t["id_number_masked"].endswith("5678") and "9001" not in t["id_number_masked"]
     assert t["tenancies"][0]["balance"]["outstanding"] == 790.0
+    assert t["tenancies"][0]["access_card_deposit"] == 100.0
 
     ov = owner.get("/api/overview?month=2026-11").json()
     assert ov["month_expected"] == 1290.0

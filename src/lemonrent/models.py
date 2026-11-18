@@ -215,6 +215,7 @@ class Tenancy(Base):
     rent_due_day: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     security_deposit: Mapped[Decimal] = _money()
     utility_deposit: Mapped[Decimal] = _money()
+    access_card_deposit: Mapped[Decimal] = _money()
     deposit_returned: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     utilities_mode: Mapped[str] = mapped_column(String(16), default="charged", nullable=False)
     moved_out_on: Mapped[Optional[date]] = mapped_column(Date)

@@ -100,6 +100,7 @@ export interface Tenancy {
   rent_due_day: number;
   security_deposit: number;
   utility_deposit: number;
+  access_card_deposit: number;
   deposit_returned: number | null;
   utilities_mode: UtilMode;
   notes: string;
