@@ -1,0 +1,36 @@
+.env
+.env.*
+!.env.example
+data/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+secrets/
+
+# Key files - never commit
+*.pem
+*.key
+
+# Python
+*.py[cod]
+venv/
+
+# Logs and local databases
+*.log
+logs/
+*.sqlite
+*.db
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Portal build output and packages
+web/node_modules/
+web/dist/
+*.tsbuildinfo

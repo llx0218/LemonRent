@@ -1,0 +1,25 @@
+rent.example.com {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		X-Robots-Tag "noindex"
+	}
+	handle /api/* {
+		request_body {
+			max_size 256KB
+		}
+		reverse_proxy 127.0.0.1:8100
+	}
+	handle {
+		root * /var/www/LemonRent/web/dist
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@notassets not path /assets/*
+		header @notassets Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
