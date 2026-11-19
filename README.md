@@ -51,15 +51,16 @@ sudo bash /var/www/LemonRent/deploy/update.sh
 
 ### Automatic deploy
 
-Every push to `main` runs the tests and, if they pass, runs `deploy/update.sh`
-on the server over SSH. Set these repository secrets (Settings → Secrets and
-variables → Actions) to turn it on; without them the deploy step is skipped.
+The server checks GitHub every 5 minutes. When `main` has a new commit whose
+tests passed, it runs `deploy/update.sh`. Commits with failing or unfinished
+tests are left alone. Turn it on once:
 
-| Secret | Value |
-|---|---|
-| `DEPLOY_HOST` | The droplet's IP address |
-| `DEPLOY_USER` | SSH user (defaults to `root`) |
-| `DEPLOY_SSH_KEY` | A private key whose public half is in that user's `~/.ssh/authorized_keys` |
+```bash
+cd /var/www/LemonRent && sudo -u lemonrent git pull --ff-only && sudo bash deploy/install_autodeploy.sh
+```
+
+Log: `/var/log/lemonrent-autodeploy.log`. To turn it off:
+`sudo systemctl disable --now lemonrent-autodeploy.timer`.
 
 ### Operator commands
 
