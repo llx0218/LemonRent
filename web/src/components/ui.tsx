@@ -175,7 +175,7 @@ export function StatusPill({ status }: { status: string }) {
   return <span className={`pill ${c}`}>{t}</span>;
 }
 
-export function Bars({ data, height = 240 }: { data: { label: string; income: number; outgo: number; net: number }[]; height?: number }) {
+export function Bars({ data, height = 240, onPick, picked }: { data: { label: string; income: number; outgo: number; net: number }[]; height?: number; onPick?: (i: number) => void; picked?: number | null }) {
   if (!data.length) return <Empty title="No data yet" />;
   const w = 800;
   const pad = { l: 8, r: 58, t: 12, b: 26 };
@@ -200,8 +200,9 @@ export function Bars({ data, height = 240 }: { data: { label: string; income: nu
       {data.map((d, i) => {
         const cx = pad.l + slot * i + slot / 2;
         return (
-          <g key={i}>
+          <g key={i} className={onPick ? "bar-slot" : undefined} onClick={onPick ? () => onPick(i) : undefined}>
             <title>{`${d.label}: in ${money(d.income)}, out ${money(d.outgo)}, net ${money(d.net)}`}</title>
+            {onPick && <rect x={pad.l + slot * i} y={0} width={slot} height={height} className={`bar-hit${picked === i ? " on" : ""}`} rx={6} />}
             <rect x={cx - bw - 1} y={y(d.income)} width={bw} height={Math.max(0, y(0) - y(d.income))} rx={3} fill="var(--accent)" />
             <rect x={cx + 1} y={y(d.outgo)} width={bw} height={Math.max(0, y(0) - y(d.outgo))} rx={3} fill="var(--peach)" opacity={0.85} />
             <text x={cx} y={height - 8} textAnchor="middle">{d.label}</text>

@@ -211,3 +211,42 @@ def test_fee_before_lease_start_counts_without_purchase_date(owner):
         "collected_on": "2026-09-20", "tenant": {"name": "J"}})
     st = owner.get(f"/api/properties/{pid}").json()["stats"]
     assert st["to_date"]["fees_in"] == 250.0
+
+
+def test_unit_order_and_cashflow_detail(owner):
+    pid = owner.post("/api/properties", headers=H, json={"name": "Block", "units": [
+        {"name": "B"}, {"name": "C"}, {"name": "A"}]}).json()["id"]
+    units = owner.get(f"/api/properties/{pid}").json()["units"]
+    assert [u["name"] for u in units] == ["B", "C", "A"]
+    ids = {u["name"]: u["id"] for u in units}
+    assert owner.put(f"/api/properties/{pid}/units/order", headers=H,
+                     json={"ids": [ids["A"], ids["B"], ids["C"]]}).status_code == 200
+    assert [u["name"] for u in owner.get(f"/api/properties/{pid}").json()["units"]] == ["A", "B", "C"]
+    assert owner.put(f"/api/properties/{pid}/units/order", headers=H,
+                     json={"ids": [ids["A"]]}).status_code == 400
+    new_id = owner.post(f"/api/properties/{pid}/units", headers=H, json={"name": "0"}).json()["id"]
+    assert owner.get(f"/api/properties/{pid}").json()["units"][-1]["id"] == new_id
+
+    r = owner.post("/api/tenancies", headers=H, json={
+        "unit_id": ids["A"], "start_date": "2026-09-01", "monthly_rent": 700, "security_deposit": 1400,
+        "admin_fee": 100, "collected_on": "2026-09-01", "tenant": {"name": "K"}}).json()
+    owner.post("/api/tenancies", headers=H, json={
+        "unit_id": ids["B"], "start_date": "2026-09-01", "monthly_rent": 500, "tenant": {"name": "L"}})
+    owner.put("/api/records", headers=H, json={"tenancy_id": r["id"], "month": "2026-09", "rent_due": 700,
+                                                "rent_paid": 650, "paid_on": "2026-09-03", "electricity": 40,
+                                                "utilities_paid": 40})
+    owner.post(f"/api/properties/{pid}/commitments", headers=H, json={"name": "Loan", "amount": 1200, "kind": "loan"})
+    owner.post(f"/api/properties/{pid}/expenses", headers=H, json={"category": "Repair", "amount": 90,
+                                                                   "spent_on": "2026-09-10"})
+    d = owner.get(f"/api/cashflow/2026-09?property_id={pid}").json()
+    p = d["properties"][0]
+    assert {(i["kind"], i["amount"]) for i in p["income"]} == {("rent", 650.0), ("utilities", 40.0), ("admin_fee", 100.0)}
+    assert {(i["kind"], i["amount"]) for i in p["outgo"]} == {("utilities", 40.0), ("commitment", 1200.0), ("expense", 90.0)}
+    assert [(i["kind"], i["amount"]) for i in p["deposits"]] == [("security_deposit", 1400.0)]
+    assert {(u["amount"], u["entered"]) for u in p["unpaid"]} == {(50.0, True), (500.0, False)}
+    assert d["total"]["income"] == 790.0 and d["total"]["outgo"] == 1330.0
+    assert owner.get("/api/cashflow/2026-9").status_code == 422
+    assert owner.get("/api/cashflow/2026-09?property_id=999999").status_code == 404
+
+    tl = {t["name"]: t for t in owner.get("/api/tenants").json()}
+    assert tl["K"]["properties"] == [[pid, "Block"]]

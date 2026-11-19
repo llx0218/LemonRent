@@ -184,6 +184,50 @@ def property_flows(p: Property, months: Iterable[date], today: date) -> list[Mon
     return out
 
 
+def month_detail(p: Property, m: date, today: date) -> dict:
+    tenancies = property_tenancies(p)
+    income, outgo, deposits, unpaid = [], [], [], []
+    recorded = set()
+    for t in tenancies:
+        who = f"{t.tenant.name} · {t.unit.name}"
+        for r in t.records:
+            if r.month != m:
+                continue
+            recorded.add(t.id)
+            if d(r.rent_paid) > 0:
+                income.append({"kind": "rent", "label": "Rent", "who": who, "amount": d(r.rent_paid),
+                               "date": r.paid_on, "tenant_id": t.tenant_id})
+            if d(r.utilities_paid) > 0:
+                income.append({"kind": "utilities", "label": "Utilities paid back", "who": who,
+                               "amount": d(r.utilities_paid), "date": r.paid_on, "tenant_id": t.tenant_id})
+            cost = utility_cost(r, t.utilities_mode)
+            if cost > 0:
+                outgo.append({"kind": "utilities", "label": "Utility bills", "who": t.unit.name, "amount": cost})
+            owed = d(r.rent_due) + utilities_due(r, t.utilities_mode) - d(r.rent_paid) - d(r.utilities_paid)
+            if owed > Decimal("0.004"):
+                unpaid.append({"who": who, "amount": owed, "entered": True, "tenant_id": t.tenant_id,
+                               "tenancy_id": t.id})
+        for rc in t.receipts:
+            if month_start(rc.received_on) != m:
+                continue
+            item = {"kind": rc.kind, "label": rc.kind.replace("_", " ").capitalize(), "who": who,
+                    "amount": d(rc.amount), "date": rc.received_on, "tenant_id": t.tenant_id}
+            (deposits if rc.is_deposit else income).append(item)
+        if t.id not in recorded and tenancy_active_in(t, m):
+            unpaid.append({"who": who, "amount": d(t.monthly_rent), "entered": False, "tenant_id": t.tenant_id,
+                           "tenancy_id": t.id})
+    if m >= property_start(p, today):
+        for c in p.commitments:
+            if commitment_active_in(c, m):
+                outgo.append({"kind": "commitment", "label": c.name, "who": "Yearly, per month"
+                              if c.frequency == "yearly" else "", "amount": commitment_monthly(c)})
+    for e in p.expenses:
+        if month_start(e.spent_on) == m:
+            outgo.append({"kind": "expense", "label": e.category, "who": e.note or "", "amount": d(e.amount),
+                          "date": e.spent_on})
+    return {"income": income, "outgo": outgo, "deposits": deposits, "unpaid": unpaid}
+
+
 @dataclass
 class Balance:
     due: Decimal = ZERO

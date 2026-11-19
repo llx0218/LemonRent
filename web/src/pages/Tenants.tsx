@@ -13,9 +13,13 @@ export function Tenants() {
   const list = useLoad(() => api.get<TenantRow[]>("/tenants"), [], 0, "/tenants");
   const [filter, setFilter] = useState<"current" | "past" | "all">("current");
   const [q, setQ] = useState("");
+  const prop = params.get("p") ?? "all";
+  const setProp = (v: string) => setParams(v === "all" ? {} : { p: v });
+  const allProps = Array.from(new Map((list.data ?? []).flatMap((t) => t.properties ?? [])).entries()).sort((a, b) => a[1].localeCompare(b[1]));
   const adding = params.get("new") === "1";
   const rows = (list.data ?? [])
     .filter((t) => filter === "all" || (filter === "current" ? t.status === "active" || t.status === "upcoming" : t.status === "past" || t.status === "none"))
+    .filter((t) => prop === "all" || (t.properties ?? []).some(([pid]) => String(pid) === prop))
     .filter((t) => !q || `${t.name} ${t.phone} ${t.current?.unit_name ?? ""} ${t.current?.property_name ?? ""}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
@@ -27,6 +31,12 @@ export function Tenants() {
             <button key={k} className={filter === k ? "on" : ""} onClick={() => setFilter(k)}>{k[0].toUpperCase() + k.slice(1)}</button>
           ))}
         </div>
+        {allProps.length > 0 && (
+          <select className="select" value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
+            <option value="all">All properties</option>
+            {allProps.map(([pid, n]) => <option key={pid} value={String(pid)}>{n}</option>)}
+          </select>
+        )}
         <input className="input" style={{ maxWidth: 260 }} placeholder="Search name, phone, unit" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="card">

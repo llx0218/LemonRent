@@ -161,6 +161,14 @@ export default function Collect() {
   }, [focusId, ready, month]);
 
   const rows = useMemo(() => (data.data?.month === month ? data.data.rows : []).filter((r) => prop === "all" || String(r.property_id) === prop), [data.data, month, prop]);
+  const groups = useMemo(() => {
+    const m = new Map<number, [number, string, CollectRow[]]>();
+    rows.forEach((r) => {
+      if (!m.has(r.property_id)) m.set(r.property_id, [r.property_id, r.property_name, []]);
+      m.get(r.property_id)![2].push(r);
+    });
+    return Array.from(m.values());
+  }, [rows]);
   const props = useMemo(() => {
     const m = new Map<number, string>();
     (data.data?.rows ?? []).forEach((r) => m.set(r.property_id, r.property_name));
@@ -256,10 +264,10 @@ export default function Collect() {
 
       <div className="row mt" style={{ flexWrap: "wrap" }}>
         {props.length > 1 ? (
-          <div className="seg">
-            <button className={prop === "all" ? "on" : ""} onClick={() => setProp("all")}>All</button>
-            {props.map(([id, n]) => <button key={id} className={prop === String(id) ? "on" : ""} onClick={() => setProp(String(id))}>{n}</button>)}
-          </div>
+          <select className="select" style={{ width: "auto" }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
+            <option value="all">All properties</option>
+            {props.map(([id, n]) => <option key={id} value={String(id)}>{n}</option>)}
+          </select>
         ) : <span />}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {month !== thisMonth() && <button className="btn sm" onClick={() => setMonth(thisMonth())}>This month</button>}
@@ -278,7 +286,16 @@ export default function Collect() {
             </Empty>
           </div>
         )}
-        {rows.map((r) =>
+        {groups.map(([pid, name, list]) => {
+          const g = list.reduce((a, r) => { const d = drafts[r.tenancy_id]; if (d) { a.due += totalDue(d, r); a.paid += totalPaid(d, r); } return a; }, { due: 0, paid: 0 });
+          return (
+            <div key={pid} className="pay-group">
+              <div className="group-head">
+                <h3>{name} <span className="muted tiny">{list.length} tenant{list.length === 1 ? "" : "s"}</span></h3>
+                <span className="num tiny"><span className="up">{money(g.paid)}</span> <span className="muted">of {money(g.due)}</span></span>
+              </div>
+              <div className="grid">
+        {list.map((r) =>
           drafts[r.tenancy_id] ? (
             <PayCard
               key={r.tenancy_id}
@@ -296,6 +313,10 @@ export default function Collect() {
             />
           ) : null,
         )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {dirtyRows.length > 0 && (

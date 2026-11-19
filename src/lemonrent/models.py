@@ -122,7 +122,7 @@ class Property(Base):
     created_at: Mapped[datetime] = _ts()
 
     units: Mapped[list["Unit"]] = relationship(back_populates="property", cascade="all, delete-orphan",
-                                               order_by="Unit.id")
+                                               order_by="(Unit.position, Unit.id)")
     commitments: Mapped[list["Commitment"]] = relationship(back_populates="property",
                                                            cascade="all, delete-orphan",
                                                            order_by="Commitment.id")
@@ -137,6 +137,7 @@ class Unit(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     property_id: Mapped[int] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     target_rent: Mapped[Decimal] = _money()
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notes: Mapped[str] = mapped_column(Text, default="")

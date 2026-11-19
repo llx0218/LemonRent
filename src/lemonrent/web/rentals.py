@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
@@ -325,10 +326,50 @@ def list_units(user: User = Depends(user_any), s: Session = Depends(get_session)
 @router.post("/properties/{pid}/units")
 def add_unit(pid: int, body: UnitIn, user: User = Depends(user_any), s: Session = Depends(get_session)):
     p = _prop(s, user, pid)
-    u = Unit(property_id=p.id, **body.model_dump())
+    u = Unit(property_id=p.id, position=max((x.position for x in p.units), default=0) + 1, **body.model_dump())
     s.add(u)
     s.flush()
     return {"id": u.id}
+
+
+class UnitOrderIn(BaseModel):
+    ids: list[int] = Field(max_length=500)
+
+
+@router.put("/properties/{pid}/units/order")
+def reorder_units(pid: int, body: UnitOrderIn, user: User = Depends(user_any), s: Session = Depends(get_session)):
+    p = _prop(s, user, pid)
+    mine = {u.id: u for u in p.units}
+    if set(body.ids) != set(mine) or len(body.ids) != len(mine):
+        raise HTTPException(400, "Send every unit of this property exactly once")
+    for i, uid in enumerate(body.ids, start=1):
+        mine[uid].position = i
+    s.flush()
+    return {"ok": True}
+
+
+def _items(rows: list[dict]) -> list[dict]:
+    return [{**r, "amount": fin.f(r["amount"]), **({"date": _ds(r["date"])} if r.get("date") else {})}
+            for r in sorted(rows, key=lambda r: (r.get("date") or date.min, r.get("label", ""), r["who"]))]
+
+
+@router.get("/cashflow/{month}")
+def cashflow_month(month: str = PathParam(pattern=r"^\d{4}-\d{2}$"), property_id: Optional[int] = None,
+                   user: User = Depends(user_any), s: Session = Depends(get_session)):
+    m = date(int(month[:4]), int(month[5:7]), 1)
+    today = fin.today_myt()
+    props = [p for p in _load_props(s, user) if property_id is None or p.id == property_id]
+    if property_id is not None and not props:
+        raise HTTPException(404, "Property not found")
+    total = fin.MonthFlow(month=m)
+    out = []
+    for p in props:
+        mf = fin.property_flows(p, [m], today)[0]
+        total.add(mf)
+        det = fin.month_detail(p, m, today)
+        out.append({"id": p.id, "name": p.name, "flow": mf.as_dict(),
+                    **{k: _items(v) for k, v in det.items()}})
+    return {"month": month, "total": total.as_dict(), "properties": out}
 
 
 @router.put("/units/{uid}")
@@ -441,6 +482,7 @@ def tenant_dict(t: Tenant, today: date, detail: bool = False) -> dict:
         "current": tenancy_dict(current, today) if current else None,
         "status": tenancy_status(current, today) if current else ("past" if tenancies else "none"),
         "outstanding": fin.f(outstanding),
+        "properties": sorted({(x.unit.property_id, x.unit.property.name) for x in tenancies}, key=lambda v: v[1]),
     }
     if detail:
         out["id_number"] = decrypt(t.id_number_enc) if t.id_number_enc else ""

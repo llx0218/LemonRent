@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, Commitment, Expense, PropertyDetail as PD, PropertySummary, Unit } from "../api";
 import { Icon } from "../components/icons";
 import Shell from "../components/Shell";
 import { Bars, Empty, Skeleton, useLoad, useToast } from "../components/ui";
 import { CommitmentForm, ExpenseForm, PropertyForm, TenancyForm, UnitForm } from "../forms";
+import { MonthDetail } from "../components/MonthDetail";
 import { cls, day, money, monthLabel, pct, period } from "../format";
 
 export function Properties() {
@@ -66,9 +67,55 @@ export function PropertyDetail() {
   const toast = useToast();
   const p = useLoad(() => api.get<PD>(`/properties/${id}`), [id], 0, `/properties/${id}`);
   const [dlg, setDlg] = useState<Dlg>(null);
+  const [pick, setPick] = useState<number | null>(null);
+  const [order, setOrder] = useState<number[] | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const done = () => {
     setDlg(null);
     p.reload();
+  };
+  useEffect(() => setOrder(null), [p.data]);
+
+  const saveOrder = async (ids: number[]) => {
+    try {
+      await api.put(`/properties/${id}/units/order`, { ids });
+      toast("Unit order saved");
+      p.reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not save the order");
+      setOrder(null);
+    }
+  };
+
+  const startDrag = (uid: number, ev: React.PointerEvent) => {
+    if (!p.data) return;
+    ev.preventDefault();
+    let ids = order ?? p.data.units.map((u) => u.id);
+    const startIds = ids.join(",");
+    setDragId(uid);
+    setOrder(ids);
+    const move = (e: PointerEvent) => {
+      const y = e.clientY;
+      const others = ids.filter((x) => x !== uid);
+      let at = others.length;
+      for (let i = 0; i < others.length; i++) {
+        const r = rowRefs.current[others[i]]?.getBoundingClientRect();
+        if (r && y < r.top + r.height / 2) { at = i; break; }
+      }
+      const next = [...others.slice(0, at), uid, ...others.slice(at)];
+      if (next.join(",") !== ids.join(",")) { ids = next; setOrder(next); }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setDragId(null);
+      if (ids.join(",") !== startIds) saveOrder(ids);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   };
   const d = p.data;
   if (p.error) return <Shell title="Property"><div className="notice err">{p.error}</div></Shell>;
@@ -108,7 +155,9 @@ export function PropertyDetail() {
               <span><i style={{ background: "var(--up)" }} />Net</span>
             </span>
           </h3>
-          <Bars data={d.series.map((m) => ({ label: monthLabel(m.month, false), income: m.income, outgo: m.outgo, net: m.net }))} />
+          <Bars data={d.series.map((m) => ({ label: monthLabel(m.month, false), income: m.income, outgo: m.outgo, net: m.net }))} onPick={setPick} picked={pick} />
+          <div className="muted tiny" style={{ marginTop: 6 }}>Tap a month to see the details.</div>
+          {pick !== null && d.series[pick] && <MonthDetail month={d.series[pick].month} propertyId={d.id} onClose={() => setPick(null)} />}
         </div>
         <div className="card">
           <h3>Since purchase <span className="muted">{st.months_owned} months</span></h3>
@@ -131,10 +180,17 @@ export function PropertyDetail() {
 
       <div className="grid g2 mt">
         <div className="card">
-          <h3>Units <button className="btn sm" onClick={() => setDlg({ k: "unit" })}><Icon.plus />Add unit</button></h3>
-          {d.units.map((u) => (
-            <div key={u.id} className="unit-row" style={{ opacity: u.active ? 1 : 0.55 }}>
-              <div style={{ minWidth: 0 }}>
+          <h3>Units
+            <span style={{ display: "flex", gap: 6 }}>
+              {d.units.length > 1 && <button className="btn sm" onClick={() => saveOrder([...d.units].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })).map((u) => u.id))}>Sort A–Z</button>}
+              <button className="btn sm" onClick={() => setDlg({ k: "unit" })}><Icon.plus />Add unit</button>
+            </span>
+          </h3>
+          {d.units.length > 1 && <div className="muted tiny" style={{ marginTop: -4 }}>Drag ⠿ to change the order.</div>}
+          {(order ? order.map((uid) => d.units.find((u) => u.id === uid)!).filter(Boolean) : d.units).map((u) => (
+            <div key={u.id} ref={(el) => { rowRefs.current[u.id] = el; }} className={`unit-row${dragId === u.id ? " dragging" : ""}`} style={{ opacity: u.active ? 1 : 0.55 }}>
+              {d.units.length > 1 && <span className="drag-handle" aria-label={`Drag to reorder ${u.name}`} onPointerDown={(e) => startDrag(u.id, e)}>⠿</span>}
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{u.name} {!u.active && <span className="pill gray">Inactive</span>}</div>
                 {u.current ? (
                   <div className="muted tiny">

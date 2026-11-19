@@ -255,6 +255,24 @@ export interface TenantRow {
   current: Tenancy | null;
   status: "active" | "upcoming" | "past" | "none";
   outstanding: number;
+  properties: [number, string][];
+}
+
+export interface CashflowItem {
+  kind: string;
+  label?: string;
+  who: string;
+  amount: number;
+  date?: string;
+  tenant_id?: number;
+  tenancy_id?: number;
+  entered?: boolean;
+}
+
+export interface CashflowMonth {
+  month: string;
+  total: Flow;
+  properties: { id: number; name: string; flow: Flow; income: CashflowItem[]; outgo: CashflowItem[]; deposits: CashflowItem[]; unpaid: (CashflowItem & { tenancy_id: number; entered: boolean })[] }[];
 }
 
 export interface TenantDetail extends TenantRow {

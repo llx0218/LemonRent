@@ -4,6 +4,7 @@ import { api, Overview as OV } from "../api";
 import Shell from "../components/Shell";
 import { Bars, Empty, Skeleton, useLoad } from "../components/ui";
 import { PropertyForm } from "../forms";
+import { MonthDetail } from "../components/MonthDetail";
 import { cls, day, money, monthLabel, pct } from "../format";
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: React.ReactNode; tone?: string }) {
@@ -20,6 +21,7 @@ export default function Overview() {
   const nav = useNavigate();
   const ov = useLoad(() => api.get<OV>("/overview"), [], 0, "/overview");
   const [adding, setAdding] = useState(false);
+  const [pick, setPick] = useState<number | null>(null);
   const d = ov.data;
   const p = d?.portfolio;
 
@@ -70,7 +72,9 @@ export default function Overview() {
                   <span><i style={{ background: "var(--up)" }} />Net</span>
                 </span>
               </h3>
-              <Bars data={p.series.map((m) => ({ label: monthLabel(m.month, false), income: m.income, outgo: m.outgo, net: m.net }))} />
+              <Bars data={p.series.map((m) => ({ label: monthLabel(m.month, false), income: m.income, outgo: m.outgo, net: m.net }))} onPick={setPick} picked={pick} />
+              <div className="muted tiny" style={{ marginTop: 6 }}>Tap a month to see the details.</div>
+              {pick !== null && p.series[pick] && <MonthDetail month={p.series[pick].month} onClose={() => setPick(null)} />}
             </div>
             <div className="card">
               <h3>{monthLabel(d.month)} collection <Link className="link tiny" to="/collect">Enter payments →</Link></h3>
