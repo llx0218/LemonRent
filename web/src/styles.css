@@ -53,7 +53,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .dot.down{background:var(--down);box-shadow:0 0 0 4px var(--down-soft)}
 
 .main{min-width:0;padding:28px 32px 48px;max-width:1280px;width:100%}
-.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:start;gap:16px;margin-bottom:24px}
+.top-title{min-width:0;grid-column:1;grid-row:1}
+.top-actions{grid-column:2;grid-row:1}
+.top-me{position:relative;flex:none;grid-column:3;grid-row:1}
 .top h1{margin:0;font-size:22px;letter-spacing:-.02em}
 .top p{margin:4px 0 0;color:var(--muted)}
 .top-actions{display:flex;gap:8px;align-items:center;position:relative}
@@ -254,7 +257,10 @@ tr.clickable:hover td{background:var(--surface2)}
   .f3,.f4{grid-template-columns:repeat(2,minmax(0,1fr))}
   .modal{padding:18px}
   .savebar{bottom:calc(84px + env(safe-area-inset-bottom))}
-  .top{flex-wrap:wrap}
+  .top{grid-template-columns:minmax(0,1fr) auto;gap:12px 12px}
+  .top-title{grid-column:1;grid-row:1}
+  .top-me{grid-column:2;grid-row:1;align-self:start}
+  .top-actions{grid-column:1/-1;grid-row:2;flex-wrap:wrap}
   .prop-card .nums{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 .month-link{color:inherit;text-decoration:underline;text-underline-offset:2px;font-weight:600;padding:2px 0}

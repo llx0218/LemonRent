@@ -54,12 +54,12 @@ export default function Shell({ title, sub, actions, children }: { title: ReactN
         <div className="scroll">
           <main className="main">
             <div className="top">
-              <div style={{ minWidth: 0 }}>
+              <div className="top-title">
                 <h1>{title}</h1>
                 {sub && <p>{sub}</p>}
               </div>
-              <div className="top-actions" ref={menuRef}>
-                {actions}
+              {actions && <div className="top-actions">{actions}</div>}
+              <div className="top-me" ref={menuRef}>
                 <button className="avatar" onClick={() => setMenu((m) => !m)} aria-label="Account menu">
                   {initials || "?"}
                 </button>
