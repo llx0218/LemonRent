@@ -310,5 +310,7 @@ input.input::-webkit-datetime-edit{padding:0}
   .input,.select{font-size:16px}
   input.input,select.select{min-height:44px}
 }
-.unit-row>div:not(.prop-hero-actions){min-width:0;flex:1 1 auto}
+.unit-row>div:not(.prop-hero-actions):not(.row-actions){min-width:0;flex:1 1 auto}
+.unit-row>.row-actions{display:flex;gap:6px;flex:none;align-self:center}
+.nowrap{white-space:nowrap}
 .unit-row>.num,.unit-row>span.num:last-child{flex:none;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}

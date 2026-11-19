@@ -224,13 +224,13 @@ export function PropertyDetail() {
                 <div style={{ fontWeight: 600 }}>{u.name} {u.room_type && <span className="pill acc">{u.room_type}</span>} {!u.active && <span className="pill gray">Inactive</span>}</div>
                 {u.current ? (
                   <div className="muted tiny">
-                    <Link className="link" to={`/tenants/${u.current.tenant_id}`}>{u.current.tenant_name}</Link> · {money(u.current.monthly_rent)}/mo · {period(u.current.start_date, u.current.end_date)}
+                    <Link className="link" to={`/tenants/${u.current.tenant_id}`}>{u.current.tenant_name}</Link> · <span className="nowrap">{money(u.current.monthly_rent)}/mo</span> · <span className="nowrap">{period(u.current.start_date, u.current.end_date)}</span>
                   </div>
                 ) : (
                   <div className="muted tiny">Vacant{u.target_rent ? ` · asking ${money(u.target_rent)}` : ""}{u.upcoming ? ` · ${u.upcoming.tenant_name} from ${day(u.upcoming.start_date)}` : ""}</div>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div className="row-actions">
                 {!u.current && u.active && <button className="btn sm primary" onClick={() => setDlg({ k: "let", unitId: u.id })}>Let</button>}
                 <button className="btn sm" onClick={() => setDlg({ k: "unit", u })} aria-label="Edit unit"><Icon.edit /></button>
               </div>

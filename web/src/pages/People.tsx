@@ -43,7 +43,7 @@ function InviteRow({ i, onRevoke, onCopy }: { i: AccountInvite; onRevoke: (i: Ac
         </div>
       </div>
       {open && (
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="row-actions">
           <button className="btn sm" onClick={() => onCopy(i)}>Copy</button>
           <button className="btn sm" onClick={() => onRevoke(i)}>Revoke</button>
         </div>
