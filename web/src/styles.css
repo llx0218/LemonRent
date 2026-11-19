@@ -290,3 +290,10 @@ tr.clickable:hover td{background:var(--surface2)}
 .collect-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 .prop-pick{width:auto;max-width:240px}
 @media (max-width:860px){.collect-actions{justify-content:flex-start;width:100%}.prop-pick{flex:1 1 100%;max-width:none}}
+.filter-search{max-width:260px}
+@media (max-width:860px){
+  .filters>*{flex:1 1 100%;max-width:none}
+  .filters .select{width:100%}
+  .filters .seg{display:flex}
+  .filters .seg button{flex:1;padding:7px 10px}
+}

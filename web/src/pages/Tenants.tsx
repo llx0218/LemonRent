@@ -37,7 +37,7 @@ export function Tenants() {
             {allProps.map(([pid, n]) => <option key={pid} value={String(pid)}>{n}</option>)}
           </select>
         )}
-        <input className="input" style={{ maxWidth: 260 }} placeholder="Search name, phone, unit" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input filter-search" placeholder="Search name, phone, unit" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="card">
         {!list.data && <Skeleton h={120} />}
