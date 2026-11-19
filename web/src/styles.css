@@ -301,3 +301,12 @@ tr.clickable:hover td{background:var(--surface2)}
 }
 .pay-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:3px;font-size:12.5px}
 .pay-meta .unit{color:var(--text);font-weight:500}
+.field{min-width:0}
+input.input,select.select{min-height:42px}
+input.input[type=date],input.input[type=month],input.input[type=time],input.input[type=datetime-local]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;text-align:left;line-height:1.25}
+input.input::-webkit-date-and-time-value{text-align:left;margin:0;min-height:1.25em}
+input.input::-webkit-datetime-edit{padding:0}
+@media (max-width:860px){
+  .input,.select{font-size:16px}
+  input.input,select.select{min-height:44px}
+}
