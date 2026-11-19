@@ -141,3 +141,73 @@ def test_csv_export(owner):
     assert r.status_code == 200
     lines = r.text.strip().splitlines()
     assert len(lines) == 2 and lines[1].startswith("2026-11,Sky Residence A-12-3,Master room,F")
+
+
+def test_deposits_and_admin_fee_receipts(owner):
+    pid = make_property(owner)
+    uid = owner.get(f"/api/properties/{pid}").json()["units"][0]["id"]
+    r = owner.post("/api/tenancies", headers=H, json={
+        "unit_id": uid, "start_date": "2026-10-01", "monthly_rent": 1000,
+        "security_deposit": 2000, "utility_deposit": 500, "access_card_deposit": 100, "admin_fee": 300,
+        "collected_on": "2026-09-25", "collected_method": "Bank transfer", "tenant": {"name": "G"}})
+    tid = r.json()["id"]
+    tenant_id = r.json()["tenant_id"]
+
+    t = owner.get(f"/api/tenants/{tenant_id}").json()["tenancies"][0]
+    assert len(t["receipts"]) == 4
+    assert {x["kind"] for x in t["receipts"]} == {"security_deposit", "utility_deposit",
+                                                  "access_card_deposit", "admin_fee"}
+    assert t["deposits"]["total_collected"] == 2600.0 and t["deposits"]["held"] == 2600.0
+    assert t["fees"]["admin_fee_collected"] == 300.0 and t["fees"]["admin_fee_pending"] == 0.0
+
+    rid = next(x["id"] for x in t["receipts"] if x["kind"] == "security_deposit")
+    owner.put(f"/api/receipts/{rid}", headers=H, json={"kind": "security_deposit", "amount": 1500,
+                                                       "received_on": "2026-09-25"})
+    owner.post(f"/api/tenancies/{tid}/receipts", headers=H, json={
+        "kind": "other_fee", "amount": 50, "received_on": "2026-10-03", "note": "Spare key"})
+    t = owner.get(f"/api/tenants/{tenant_id}").json()["tenancies"][0]
+    assert t["deposits"]["pending"]["security_deposit"] == 500.0
+    assert t["deposits"]["held"] == 2100.0
+    assert t["fees"]["other_fees_collected"] == 50.0
+
+    st = owner.get(f"/api/properties/{pid}").json()
+    assert st["stats"]["to_date"]["fees_in"] == 350.0
+    assert st["stats"]["deposits_held"] == 2100.0
+    by_month = {m["month"]: m for m in st["series"]}
+    assert by_month["2026-09"]["fees_in"] == 300.0
+    assert by_month["2026-10"]["fees_in"] == 50.0
+
+    csv = owner.get("/api/receipts.csv?year=2026").text.strip().splitlines()
+    assert len(csv) == 6
+    assert any("admin fee,300.00,income" in line for line in csv)
+    assert any("security deposit,1500.00,deposit held" in line for line in csv)
+
+    assert owner.post(f"/api/tenancies/{tid}/receipts", headers=H, json={
+        "kind": "admin_fee", "amount": 0, "received_on": "2026-10-03"}).status_code == 422
+    assert owner.delete(f"/api/receipts/{rid}", headers=H).status_code == 200
+    t = owner.get(f"/api/tenants/{tenant_id}").json()["tenancies"][0]
+    assert t["deposits"]["held"] == 600.0
+
+
+def test_receipts_scoped_to_owner(owner, client):
+    pid = make_property(owner)
+    uid = owner.get(f"/api/properties/{pid}").json()["units"][0]["id"]
+    tid = owner.post("/api/tenancies", headers=H, json={"unit_id": uid, "start_date": "2026-10-01",
+                                                         "monthly_rent": 1000, "tenant": {"name": "H"}}).json()["id"]
+    rid = owner.post(f"/api/tenancies/{tid}/receipts", headers=H, json={
+        "kind": "admin_fee", "amount": 200, "received_on": "2026-10-01"}).json()["id"]
+    owner.post("/api/auth/logout", headers=H)
+    register(client, email="other@example.com", code="RENT-TEST-0002")
+    assert client.post(f"/api/tenancies/{tid}/receipts", headers=H, json={
+        "kind": "admin_fee", "amount": 1, "received_on": "2026-10-01"}).status_code == 404
+    assert client.delete(f"/api/receipts/{rid}", headers=H).status_code == 404
+
+
+def test_fee_before_lease_start_counts_without_purchase_date(owner):
+    pid = owner.post("/api/properties", headers=H, json={"name": "Studio"}).json()["id"]
+    uid = owner.get(f"/api/properties/{pid}").json()["units"][0]["id"]
+    owner.post("/api/tenancies", headers=H, json={
+        "unit_id": uid, "start_date": "2026-10-01", "monthly_rent": 900, "admin_fee": 250,
+        "collected_on": "2026-09-20", "tenant": {"name": "J"}})
+    st = owner.get(f"/api/properties/{pid}").json()["stats"]
+    assert st["to_date"]["fees_in"] == 250.0

@@ -84,6 +84,20 @@ export interface Rec {
   note: string;
 }
 
+export type ReceiptKind = "security_deposit" | "utility_deposit" | "access_card_deposit" | "admin_fee" | "other_fee";
+export type DepositKind = "security_deposit" | "utility_deposit" | "access_card_deposit";
+
+export interface Receipt {
+  id: number;
+  tenancy_id: number;
+  kind: ReceiptKind;
+  amount: number;
+  received_on: string;
+  method: string;
+  note: string;
+  is_deposit: boolean;
+}
+
 export interface Tenancy {
   id: number;
   unit_id: number;
@@ -101,6 +115,20 @@ export interface Tenancy {
   security_deposit: number;
   utility_deposit: number;
   access_card_deposit: number;
+  admin_fee: number;
+  deposits: {
+    collected: Record<DepositKind, number>;
+    pending: Record<DepositKind, number>;
+    total_agreed: number;
+    total_collected: number;
+    held: number;
+  };
+  fees: {
+    admin_fee_agreed: number;
+    admin_fee_collected: number;
+    admin_fee_pending: number;
+    other_fees_collected: number;
+  };
   deposit_returned: number | null;
   utilities_mode: UtilMode;
   notes: string;
@@ -108,6 +136,7 @@ export interface Tenancy {
   days_left: number | null;
   balance: Balance;
   records?: Rec[];
+  receipts?: Receipt[];
 }
 
 export interface Stats {
@@ -132,6 +161,7 @@ export interface Stats {
     expenses: number;
     utilities_cost: number;
     utilities_in: number;
+    fees_in: number;
   };
   payback_pct: number | null;
   appreciation: number | null;
@@ -139,6 +169,7 @@ export interface Stats {
   units_active: number;
   units_occupied: number;
   arrears: number;
+  deposits_held: number;
 }
 
 export interface Flow {
@@ -146,6 +177,7 @@ export interface Flow {
   rent_expected: number;
   rent_in: number;
   utilities_in: number;
+  fees_in: number;
   utilities_cost: number;
   commitments: number;
   expenses: number;
@@ -248,6 +280,7 @@ export interface Overview {
     units_active: number;
     units_occupied: number;
     arrears: number;
+    deposits_held: number;
   };
   month_expected: number;
   month_collected: number;

@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session, selectinload
 from .. import finance as fin
 from ..crypto import decrypt, encrypt
 from ..db import get_session, utcnow
-from ..models import (Commitment, Expense, MonthlyRecord, Property, Tenancy, Tenant, Unit, User)
+from ..models import (DEPOSIT_KINDS, Commitment, Expense, MonthlyRecord, Property, Receipt, Tenancy,
+                      Tenant, Unit, User)
 from ..services import audit
 from .auth import client_ip, user_any
 
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/api")
 Money = Field(default=Decimal("0"), ge=0, le=Decimal("9999999999"))
 OptMoney = Field(default=None, ge=0, le=Decimal("9999999999"))
 UtilMode = Literal["charged", "included", "tenant_direct"]
+ReceiptKind = Literal["security_deposit", "utility_deposit", "access_card_deposit", "admin_fee", "other_fee"]
 
 
 def _load_props(s: Session, user: User, pid: Optional[int] = None) -> list[Property]:
@@ -36,6 +38,7 @@ def _load_props(s: Session, user: User, pid: Optional[int] = None) -> list[Prope
     q = (q
          .options(selectinload(Property.units).selectinload(Unit.tenancies).selectinload(Tenancy.records),
                   selectinload(Property.units).selectinload(Unit.tenancies).selectinload(Tenancy.tenant),
+                  selectinload(Property.units).selectinload(Unit.tenancies).selectinload(Tenancy.receipts),
                   selectinload(Property.commitments), selectinload(Property.expenses)))
     return list(s.scalars(q))
 
@@ -87,8 +90,16 @@ def tenancy_status(t: Tenancy, today: date) -> str:
     return "active"
 
 
+def receipt_dict(rc: Receipt) -> dict:
+    return {"id": rc.id, "tenancy_id": rc.tenancy_id, "kind": rc.kind, "amount": fin.f(rc.amount),
+            "received_on": _ds(rc.received_on), "method": rc.method, "note": rc.note,
+            "is_deposit": rc.is_deposit}
+
+
 def tenancy_dict(t: Tenancy, today: date, with_records: bool = False) -> dict:
     b = fin.tenancy_balance(t, today)
+    dep = fin.deposit_summary(t)
+    fees = fin.fees_summary(t)
     out = {
         "id": t.id, "unit_id": t.unit_id, "unit_name": t.unit.name,
         "property_id": t.unit.property_id, "property_name": t.unit.property.name,
@@ -96,7 +107,12 @@ def tenancy_dict(t: Tenancy, today: date, with_records: bool = False) -> dict:
         "start_date": _ds(t.start_date), "end_date": _ds(t.end_date), "moved_out_on": _ds(t.moved_out_on),
         "monthly_rent": fin.f(t.monthly_rent), "rent_due_day": t.rent_due_day,
         "security_deposit": fin.f(t.security_deposit), "utility_deposit": fin.f(t.utility_deposit),
-        "access_card_deposit": fin.f(t.access_card_deposit),
+        "access_card_deposit": fin.f(t.access_card_deposit), "admin_fee": fin.f(t.admin_fee),
+        "deposits": {"collected": {k: fin.f(v) for k, v in dep["collected"].items()},
+                     "pending": {k: fin.f(v) for k, v in dep["pending"].items()},
+                     "total_agreed": fin.f(dep["total_agreed"]),
+                     "total_collected": fin.f(dep["total_collected"]), "held": fin.f(dep["held"])},
+        "fees": {k: fin.f(v) for k, v in fees.items()},
         "deposit_returned": fin.f(t.deposit_returned), "utilities_mode": t.utilities_mode,
         "notes": t.notes, "status": tenancy_status(t, today),
         "days_left": (t.end_date - today).days if t.end_date and not t.moved_out_on else None,
@@ -106,6 +122,7 @@ def tenancy_dict(t: Tenancy, today: date, with_records: bool = False) -> dict:
     }
     if with_records:
         out["records"] = [record_dict(r, t) for r in reversed(t.records)]
+        out["receipts"] = [receipt_dict(rc) for rc in reversed(t.receipts)]
     return out
 
 
@@ -434,6 +451,7 @@ def tenant_dict(t: Tenant, today: date, detail: bool = False) -> dict:
 def _load_tenants(s: Session, user: User) -> list[Tenant]:
     q = (select(Tenant).where(Tenant.owner_id == user.id).order_by(Tenant.name)
          .options(selectinload(Tenant.tenancies).selectinload(Tenancy.records),
+                  selectinload(Tenant.tenancies).selectinload(Tenancy.receipts),
                   selectinload(Tenant.tenancies).selectinload(Tenancy.unit).selectinload(Unit.property)))
     return list(s.scalars(q))
 
@@ -484,6 +502,7 @@ class TenancyIn(BaseModel):
     security_deposit: Decimal = Money
     utility_deposit: Decimal = Money
     access_card_deposit: Decimal = Money
+    admin_fee: Decimal = Money
     utilities_mode: UtilMode = "charged"
     moved_out_on: Optional[date] = None
     deposit_returned: Optional[Decimal] = OptMoney
@@ -502,6 +521,8 @@ class TenancyCreate(TenancyIn):
     unit_id: int
     tenant_id: Optional[int] = None
     tenant: Optional[TenantIn] = None
+    collected_on: Optional[date] = None
+    collected_method: str = Field(default="", max_length=24)
 
 
 def _check_overlap(s: Session, unit: Unit, start: date, last: Optional[date], skip: Optional[int]) -> None:
@@ -533,9 +554,17 @@ def create_tenancy(body: TenancyCreate, request: Request, user: User = Depends(u
     last = body.moved_out_on or body.end_date
     _check_overlap(s, unit, body.start_date, last, None)
     t = Tenancy(unit_id=unit.id, tenant_id=tenant.id,
-                **body.model_dump(exclude={"unit_id", "tenant_id", "tenant"}))
+                **body.model_dump(exclude={"unit_id", "tenant_id", "tenant", "collected_on",
+                                           "collected_method"}))
     s.add(t)
     s.flush()
+    if body.collected_on:
+        for kind in DEPOSIT_KINDS + ("admin_fee",):
+            amount = getattr(body, kind)
+            if amount > 0:
+                s.add(Receipt(tenancy_id=t.id, kind=kind, amount=amount, received_on=body.collected_on,
+                              method=body.collected_method))
+        s.flush()
     audit(s, f"New tenancy: {tenant.name} in {unit.property.name} / {unit.name}", user, client_ip(request))
     return {"id": t.id, "tenant_id": tenant.id}
 
@@ -557,6 +586,75 @@ def delete_tenancy(tid: int, request: Request, user: User = Depends(user_any),
     audit(s, f"Deleted tenancy of {t.tenant.name} in {t.unit.name}", user, client_ip(request))
     s.delete(t)
     return {"ok": True}
+
+
+class ReceiptIn(BaseModel):
+    kind: ReceiptKind
+    amount: Decimal = Field(gt=0, le=Decimal("9999999999"))
+    received_on: date
+    method: str = Field(default="", max_length=24)
+    note: str = Field(default="", max_length=300)
+
+
+def _receipt(s: Session, user: User, rid: int) -> Receipt:
+    rc = s.get(Receipt, rid)
+    if rc is None or rc.tenancy.unit.property.owner_id != user.id:
+        raise HTTPException(404, "Receipt not found")
+    return rc
+
+
+@router.post("/tenancies/{tid}/receipts")
+def add_receipt(tid: int, body: ReceiptIn, request: Request, user: User = Depends(user_any),
+                s: Session = Depends(get_session)):
+    t = _tenancy(s, user, tid)
+    rc = Receipt(tenancy_id=t.id, **body.model_dump())
+    s.add(rc)
+    s.flush()
+    audit(s, f"Received {body.kind.replace('_', ' ')} {body.amount} from {t.tenant.name}", user,
+          client_ip(request))
+    return receipt_dict(rc)
+
+
+@router.put("/receipts/{rid}")
+def update_receipt(rid: int, body: ReceiptIn, user: User = Depends(user_any),
+                   s: Session = Depends(get_session)):
+    rc = _receipt(s, user, rid)
+    for k, v in body.model_dump().items():
+        setattr(rc, k, v)
+    s.flush()
+    return receipt_dict(rc)
+
+
+@router.delete("/receipts/{rid}")
+def delete_receipt(rid: int, request: Request, user: User = Depends(user_any),
+                   s: Session = Depends(get_session)):
+    rc = _receipt(s, user, rid)
+    audit(s, f"Deleted {rc.kind.replace('_', ' ')} receipt of {rc.amount} from {rc.tenancy.tenant.name}",
+          user, client_ip(request))
+    s.delete(rc)
+    return {"ok": True}
+
+
+@router.get("/receipts.csv")
+def receipts_csv(year: Optional[int] = None, user: User = Depends(user_any),
+                 s: Session = Depends(get_session)):
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["received_on", "property", "unit", "tenant", "type", "amount", "counts_as", "method", "note"])
+    rows = []
+    for p in _load_props(s, user):
+        for u in p.units:
+            for t in u.tenancies:
+                for rc in t.receipts:
+                    if year and rc.received_on.year != year:
+                        continue
+                    rows.append((rc.received_on, p.name, u.name, t.tenant.name, rc))
+    for dt, pn, un, tn, rc in sorted(rows, key=lambda x: (x[0], x[1], x[2])):
+        w.writerow([dt.isoformat(), pn, un, tn, rc.kind.replace("_", " "), rc.amount,
+                    "deposit held" if rc.is_deposit else "income", rc.method, rc.note])
+    name = f"lemonrent-deposits-fees{'-' + str(year) if year else ''}.csv"
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 def _balance_before(t: Tenancy, m: date) -> Decimal:

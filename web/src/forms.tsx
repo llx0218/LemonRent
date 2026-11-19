@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { api, Commitment, Expense, PropertyBase, Tenancy, TenantRow, Unit, UtilMode } from "./api";
+import { api, Commitment, Expense, PropertyBase, Receipt, ReceiptKind, Tenancy, TenantRow, Unit, UtilMode } from "./api";
 import { Field, Modal, MoneyInput, num, str, useForm, useLoad, useSubmit } from "./components/ui";
-import { todayMYT, UTIL_LABEL } from "./format";
+import { RECEIPT_LABEL, todayMYT, UTIL_LABEL } from "./format";
 
 type Done = () => void;
 
@@ -293,10 +293,14 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
     security_deposit: str(tenancy?.security_deposit),
     utility_deposit: str(tenancy?.utility_deposit),
     access_card_deposit: str(tenancy?.access_card_deposit),
+    admin_fee: str(tenancy?.admin_fee),
     utilities_mode: (tenancy?.utilities_mode ?? "charged") as UtilMode,
     moved_out_on: tenancy?.moved_out_on ?? "",
     deposit_returned: str(tenancy?.deposit_returned),
     notes: tenancy?.notes ?? "",
+    collected: true,
+    collected_on: today,
+    collected_method: "",
   });
   const unitList = (units.data ?? []).filter((u) => u.active || String(u.id) === f.unit_id);
   const pickUnit = (id: string) => {
@@ -318,6 +322,7 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
       security_deposit: num(f.security_deposit),
       utility_deposit: num(f.utility_deposit),
       access_card_deposit: num(f.access_card_deposit),
+      admin_fee: num(f.admin_fee),
       utilities_mode: f.utilities_mode,
       moved_out_on: f.moved_out_on || null,
       deposit_returned: f.deposit_returned === "" ? null : num(f.deposit_returned),
@@ -329,7 +334,8 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
     } else {
       if (!f.unit_id) throw new Error("Choose a unit");
       const extra = who === "existing" ? { tenant_id: Number(f.tenant_id) || null } : { tenant: nt.f };
-      onSaved(await api.post<{ id: number; tenant_id: number }>("/tenancies", { unit_id: Number(f.unit_id), ...extra, ...body }));
+      const got = f.collected ? { collected_on: f.collected_on, collected_method: f.collected_method } : {};
+      onSaved(await api.post<{ id: number; tenant_id: number }>("/tenancies", { unit_id: Number(f.unit_id), ...extra, ...body, ...got }));
     }
   });
   const remove = async () => {
@@ -390,7 +396,23 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
           <Field label="Security deposit"><MoneyInput value={f.security_deposit} onChange={set("security_deposit")} /></Field>
           <Field label="Utility deposit"><MoneyInput value={f.utility_deposit} onChange={set("utility_deposit")} /></Field>
           <Field label="Access card deposit"><MoneyInput value={f.access_card_deposit} onChange={set("access_card_deposit")} /></Field>
+          <Field label="Admin fee" hint="One-off, counts as income"><MoneyInput value={f.admin_fee} onChange={set("admin_fee")} /></Field>
         </div>
+        {!tenancy && num(f.security_deposit) + num(f.utility_deposit) + num(f.access_card_deposit) + num(f.admin_fee) > 0 && (
+          <>
+            <label className="check" style={{ cursor: "pointer", marginBottom: 10 }}>
+              <input type="checkbox" checked={f.collected} onChange={(e) => set("collected")(e.target.checked)} />
+              <span>Deposits and admin fee already received <small className="muted">(untick to record them later)</small></span>
+            </label>
+            {f.collected && (
+              <div className="f2">
+                <Field label="Received on"><input className="input" type="date" required value={f.collected_on} onChange={ev("collected_on")} /></Field>
+                <Field label="Method"><input className="input" value={f.collected_method} onChange={ev("collected_method")} placeholder="Bank transfer, cash…" /></Field>
+              </div>
+            )}
+          </>
+        )}
+        {tenancy && <div className="hint" style={{ marginBottom: 10 }}>Changing the amounts here does not record a payment. Use "Record receipt" on the tenancy for money actually received.</div>}
         {tenancy && (
           <div className="f3">
             <Field label="Moved out on" hint="Set when the tenant leaves"><input className="input" type="date" value={f.moved_out_on} onChange={ev("moved_out_on")} /></Field>
@@ -404,8 +426,52 @@ export function TenancyForm({ tenancy, unitId, tenantId, onClose, onSaved }: { t
   );
 }
 
+export function ReceiptForm({ tenancy, r, kind, amount, onClose, onSaved }: { tenancy: Tenancy; r?: Receipt; kind?: ReceiptKind; amount?: number; onClose: Done; onSaved: Done }) {
+  const { f, set, ev } = useForm({
+    kind: (r?.kind ?? kind ?? "security_deposit") as ReceiptKind,
+    amount: str(r?.amount ?? amount),
+    received_on: r?.received_on ?? todayMYT(),
+    method: r?.method ?? "",
+    note: r?.note ?? "",
+  });
+  const isDeposit = f.kind.endsWith("_deposit");
+  const s = useSubmit(async () => {
+    if (num(f.amount) <= 0) throw new Error("Enter the amount received");
+    const body = { ...f, amount: num(f.amount) };
+    if (r) await api.put(`/receipts/${r.id}`, body);
+    else await api.post(`/tenancies/${tenancy.id}/receipts`, body);
+    onSaved();
+  });
+  const remove = async () => {
+    if (!r || !confirm(`Delete this ${RECEIPT_LABEL[r.kind].toLowerCase()} receipt?`)) return;
+    await api.del(`/receipts/${r.id}`);
+    onSaved();
+  };
+  return (
+    <Modal title={r ? "Edit receipt" : "Record receipt"} sub={`${tenancy.tenant_name} · ${tenancy.property_name} / ${tenancy.unit_name}`} onClose={onClose}>
+      <form onSubmit={s.submit}>
+        <div className="f3">
+          <Field label="What for">
+            <select className="select" value={f.kind} onChange={ev("kind")}>
+              {Object.entries(RECEIPT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
+          <Field label="Amount"><MoneyInput value={f.amount} onChange={set("amount")} autoFocus /></Field>
+          <Field label="Received on"><input className="input" type="date" required value={f.received_on} onChange={ev("received_on")} /></Field>
+        </div>
+        <div className="f2">
+          <Field label="Method"><input className="input" value={f.method} onChange={ev("method")} placeholder="Bank transfer, cash…" /></Field>
+          <Field label="Note"><input className="input" value={f.note} onChange={ev("note")} placeholder="e.g. Receipt no., second access card" /></Field>
+        </div>
+        <div className="hint" style={{ marginBottom: 10 }}>{isDeposit ? "Deposits are held for the tenant and do not count as income." : "Counts as income in the month received."}</div>
+        <Actions busy={s.busy} err={s.err} onClose={onClose} label={r ? "Save" : "Record"} danger={r ? { label: "Delete", run: remove } : undefined} />
+      </form>
+    </Modal>
+  );
+}
+
 export function EndTenancyForm({ tenancy, onClose, onSaved }: { tenancy: Tenancy; onClose: Done; onSaved: Done }) {
-  const deposits = tenancy.security_deposit + tenancy.utility_deposit + tenancy.access_card_deposit;
+  const deposits = tenancy.deposits.total_collected;
   const owed = Math.max(0, tenancy.balance.outstanding);
   const { f, set, ev } = useForm({ moved_out_on: todayMYT(), deposit_returned: str(Math.max(0, deposits - owed)) });
   const s = useSubmit(async () => {
@@ -417,6 +483,7 @@ export function EndTenancyForm({ tenancy, onClose, onSaved }: { tenancy: Tenancy
       security_deposit: tenancy.security_deposit,
       utility_deposit: tenancy.utility_deposit,
       access_card_deposit: tenancy.access_card_deposit,
+      admin_fee: tenancy.admin_fee,
       utilities_mode: tenancy.utilities_mode,
       notes: tenancy.notes,
       moved_out_on: f.moved_out_on,

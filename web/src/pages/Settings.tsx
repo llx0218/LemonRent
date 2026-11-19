@@ -126,7 +126,10 @@ export default function Settings() {
         <div className="card" style={{ alignSelf: "start" }}>
           <h3>Export</h3>
           <p className="muted" style={{ marginTop: 0 }}>Download every rent and utility record as a spreadsheet (CSV), for your tax filing or accountant.</p>
-          <a className="btn" href="/api/records.csv">Download all records</a>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn" href="/api/records.csv">Download all records</a>
+            <a className="btn" href="/api/receipts.csv">Download deposits &amp; fees</a>
+          </div>
         </div>
       </div>
     </Shell>

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, TenantDetail as TD, TenantRow, Tenancy } from "../api";
+import { api, DepositKind, Receipt, ReceiptKind, TenantDetail as TD, TenantRow, Tenancy } from "../api";
 import { Icon } from "../components/icons";
 import Shell from "../components/Shell";
 import { Empty, Skeleton, StatusPill, useLoad, useToast } from "../components/ui";
-import { EndTenancyForm, TenancyForm, TenantForm } from "../forms";
-import { day, money, monthLabel, period, UTIL_LABEL } from "../format";
+import { EndTenancyForm, ReceiptForm, TenancyForm, TenantForm } from "../forms";
+import { day, money, monthLabel, period, RECEIPT_LABEL, UTIL_LABEL } from "../format";
 
 export function Tenants() {
   const nav = useNavigate();
@@ -75,8 +75,56 @@ export function Tenants() {
   );
 }
 
-function TenancyCard({ t, onEdit, onEnd }: { t: Tenancy; onEdit: () => void; onEnd: () => void }) {
+type ReceiptDlg = { r?: Receipt; kind?: ReceiptKind; amount?: number };
+
+const DEPOSIT_KINDS: DepositKind[] = ["security_deposit", "utility_deposit", "access_card_deposit"];
+
+function DepositsAndFees({ t, onReceipt }: { t: Tenancy; onReceipt: (x: ReceiptDlg) => void }) {
+  const receipts = t.receipts ?? [];
+  const lines = [
+    ...DEPOSIT_KINDS.map((k) => ({ kind: k as ReceiptKind, agreed: t[k], got: t.deposits.collected[k], pending: t.deposits.pending[k] })),
+    { kind: "admin_fee" as ReceiptKind, agreed: t.admin_fee, got: t.fees.admin_fee_collected, pending: t.fees.admin_fee_pending },
+  ].filter((x) => x.agreed > 0 || x.got > 0);
+  return (
+    <>
+      <div className="section-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Deposits &amp; fees</span>
+        <button className="btn sm" onClick={() => onReceipt({})}><Icon.plus />Record receipt</button>
+      </div>
+      {lines.map((x) => (
+        <div key={x.kind} className="unit-row">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600 }}>{RECEIPT_LABEL[x.kind]}{x.kind === "admin_fee" && <span className="muted tiny"> · income</span>}</div>
+            <div className="muted tiny">Received {money(x.got)} of {money(x.agreed)}</div>
+          </div>
+          {x.pending > 0.004
+            ? <button className="btn sm" onClick={() => onReceipt({ kind: x.kind, amount: x.pending })}><span className="num down">{money(x.pending)}</span>&nbsp;Record</button>
+            : <span className="pill up">Received</span>}
+        </div>
+      ))}
+      {receipts.length > 0 && <div className="muted tiny" style={{ margin: "12px 0 2px" }}>Receipts</div>}
+      {receipts.length === 0 ? (
+        <div className="muted tiny" style={{ marginTop: 6 }}>No deposits or fees recorded yet.</div>
+      ) : (
+        <div>
+          {receipts.map((r) => (
+            <div key={r.id} className="unit-row clickable" onClick={() => onReceipt({ r })}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{RECEIPT_LABEL[r.kind]} {r.is_deposit ? <span className="pill gray">Held</span> : <span className="pill up">Income</span>}</div>
+                <div className="muted tiny">{day(r.received_on)}{r.method ? ` · ${r.method}` : ""}{r.note ? ` · ${r.note}` : ""}</div>
+              </div>
+              <span className="num">{money(r.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function TenancyCard({ t, onEdit, onEnd, onReceipt }: { t: Tenancy; onEdit: () => void; onEnd: () => void; onReceipt: (x: ReceiptDlg) => void }) {
   const recs = t.records ?? [];
+  const depPending = DEPOSIT_KINDS.reduce((a, k) => a + t.deposits.pending[k], 0);
   return (
     <div className="card mt">
       <h3>
@@ -94,8 +142,9 @@ function TenancyCard({ t, onEdit, onEnd }: { t: Tenancy; onEdit: () => void; onE
           {t.days_left !== null && t.status === "active" && <div className={`tiny ${t.days_left <= 30 ? "down" : "muted"}`}>{t.days_left} days left</div>}</div>
         <div><div className="muted tiny">Rent</div><div className="num">{money(t.monthly_rent)} <span className="muted tiny">due day {t.rent_due_day}</span></div>
           <div className="muted tiny">{UTIL_LABEL[t.utilities_mode]}</div></div>
-        <div><div className="muted tiny">Deposits held</div><div className="num">{money(t.security_deposit + t.utility_deposit + t.access_card_deposit)}</div>
-          <div className="muted tiny">{money(t.security_deposit)} security · {money(t.utility_deposit)} utility · {money(t.access_card_deposit)} access card</div>
+        <div><div className="muted tiny">Deposits held</div><div className="num">{money(t.deposits.held)}</div>
+          <div className="muted tiny">Received {money(t.deposits.total_collected)} of {money(t.deposits.total_agreed)}</div>
+          {depPending > 0.004 && <div className="tiny down">{money(depPending)} not received yet</div>}
           {t.deposit_returned !== null && <div className="muted tiny">Returned {money(t.deposit_returned)}</div>}</div>
         <div><div className="muted tiny">Balance</div>
           <div className={`num ${t.balance.outstanding > 0 ? "down" : "up"}`} style={{ fontWeight: 700 }}>{t.balance.outstanding > 0 ? money(t.balance.outstanding) : "Paid up"}</div>
@@ -103,6 +152,7 @@ function TenancyCard({ t, onEdit, onEnd }: { t: Tenancy; onEdit: () => void; onE
           {t.balance.unrecorded_months.length > 0 && <div className="tiny muted">Not entered yet: {t.balance.unrecorded_months.map((m) => monthLabel(m, false)).join(", ")}</div>}</div>
       </div>
       {t.notes && <p className="muted tiny" style={{ whiteSpace: "pre-wrap" }}>{t.notes}</p>}
+      <DepositsAndFees t={t} onReceipt={onReceipt} />
       <div className="section-title">Payment history</div>
       {recs.length === 0 ? (
         <div className="muted tiny">Nothing recorded yet. <Link className="link" to="/collect">Enter this month's payment</Link></div>
@@ -140,7 +190,7 @@ export function TenantDetail() {
   const nav = useNavigate();
   const toast = useToast();
   const t = useLoad(() => api.get<TD>(`/tenants/${id}`), [id], 0, `/tenants/${id}`);
-  const [dlg, setDlg] = useState<{ k: "edit" } | { k: "new" } | { k: "tenancy"; x: Tenancy } | { k: "end"; x: Tenancy } | null>(null);
+  const [dlg, setDlg] = useState<{ k: "edit" } | { k: "new" } | { k: "tenancy"; x: Tenancy } | { k: "end"; x: Tenancy } | ({ k: "receipt"; x: Tenancy } & ReceiptDlg) | null>(null);
   const [showId, setShowId] = useState(false);
   const done = () => {
     setDlg(null);
@@ -183,7 +233,7 @@ export function TenantDetail() {
       </div>
 
       {d.tenancies.map((x) => (
-        <TenancyCard key={x.id} t={x} onEdit={() => setDlg({ k: "tenancy", x })} onEnd={() => setDlg({ k: "end", x })} />
+        <TenancyCard key={x.id} t={x} onEdit={() => setDlg({ k: "tenancy", x })} onEnd={() => setDlg({ k: "end", x })} onReceipt={(o) => setDlg({ k: "receipt", x, ...o })} />
       ))}
       {d.tenancies.length === 0 && (
         <div className="card mt">
@@ -196,6 +246,7 @@ export function TenantDetail() {
       {dlg?.k === "new" && <TenancyForm tenantId={d.id} onClose={() => setDlg(null)} onSaved={done} />}
       {dlg?.k === "tenancy" && <TenancyForm tenancy={dlg.x} onClose={() => setDlg(null)} onSaved={done} />}
       {dlg?.k === "end" && <EndTenancyForm tenancy={dlg.x} onClose={() => setDlg(null)} onSaved={done} />}
+      {dlg?.k === "receipt" && <ReceiptForm tenancy={dlg.x} r={dlg.r} kind={dlg.kind} amount={dlg.amount} onClose={() => setDlg(null)} onSaved={done} />}
     </Shell>
   );
 }

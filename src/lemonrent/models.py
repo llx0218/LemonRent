@@ -216,6 +216,7 @@ class Tenancy(Base):
     security_deposit: Mapped[Decimal] = _money()
     utility_deposit: Mapped[Decimal] = _money()
     access_card_deposit: Mapped[Decimal] = _money()
+    admin_fee: Mapped[Decimal] = _money()
     deposit_returned: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     utilities_mode: Mapped[str] = mapped_column(String(16), default="charged", nullable=False)
     moved_out_on: Mapped[Optional[date]] = mapped_column(Date)
@@ -227,6 +228,9 @@ class Tenancy(Base):
     records: Mapped[list["MonthlyRecord"]] = relationship(back_populates="tenancy",
                                                           cascade="all, delete-orphan",
                                                           order_by="MonthlyRecord.month")
+    receipts: Mapped[list["Receipt"]] = relationship(back_populates="tenancy",
+                                                     cascade="all, delete-orphan",
+                                                     order_by="Receipt.received_on")
 
     @property
     def last_day(self) -> Optional[date]:
@@ -254,3 +258,29 @@ class MonthlyRecord(Base):
     updated_at: Mapped[datetime] = _ts()
 
     tenancy: Mapped[Tenancy] = relationship(back_populates="records")
+
+
+DEPOSIT_KINDS = ("security_deposit", "utility_deposit", "access_card_deposit")
+FEE_KINDS = ("admin_fee", "other_fee")
+RECEIPT_KINDS = DEPOSIT_KINDS + FEE_KINDS
+
+
+class Receipt(Base):
+    """A one-off amount received from a tenant: a deposit (held, refundable,
+    not income) or an admin or other fee (income in the month received)."""
+    __tablename__ = "tenancy_receipts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenancy_id: Mapped[int] = mapped_column(ForeignKey("tenancies.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[Decimal] = _money()
+    received_on: Mapped[date] = mapped_column(Date, nullable=False)
+    method: Mapped[str] = mapped_column(String(24), default="")
+    note: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = _ts()
+
+    tenancy: Mapped[Tenancy] = relationship(back_populates="receipts")
+
+    @property
+    def is_deposit(self) -> bool:
+        return self.kind in DEPOSIT_KINDS

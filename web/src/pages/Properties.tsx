@@ -114,10 +114,12 @@ export function PropertyDetail() {
           <h3>Since purchase <span className="muted">{st.months_owned} months</span></h3>
           <KV k="Rent received" v={money(st.to_date.rent_in)} tone="up" />
           <KV k="Utilities paid back" v={money(st.to_date.utilities_in)} />
+          <KV k="Admin & other fees" v={money(st.to_date.fees_in)} tone={st.to_date.fees_in > 0 ? "up" : undefined} />
           <KV k="Utility bills" v={money(-st.to_date.utilities_cost)} />
           <KV k="Commitments" v={money(-st.to_date.commitments)} />
           <KV k="One-off expenses" v={money(-st.to_date.expenses)} />
           <KV k="Net cashflow" v={money(st.to_date.net, { sign: true })} tone={cls(st.to_date.net)} />
+          <KV k="Deposits held (not income)" v={money(st.deposits_held)} />
           {st.appreciation !== null && (
             <>
               <KV k="Value gain" v={money(st.appreciation, { sign: true })} tone={cls(st.appreciation)} />

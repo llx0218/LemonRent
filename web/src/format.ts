@@ -77,6 +77,14 @@ export const UTIL_LABEL: Record<string, string> = {
   tenant_direct: "Tenant pays providers",
 };
 
+export const RECEIPT_LABEL: Record<string, string> = {
+  security_deposit: "Security deposit",
+  utility_deposit: "Utility deposit",
+  access_card_deposit: "Access card deposit",
+  admin_fee: "Admin fee",
+  other_fee: "Other fee",
+};
+
 export function period(start: string, end: string | null) {
   return `${day(start)} – ${end ? day(end) : "open-ended"}`;
 }

@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Iterable, Optional
 
-from .models import Commitment, MonthlyRecord, Property, Tenancy
+from .models import DEPOSIT_KINDS, Commitment, MonthlyRecord, Property, Tenancy
 
 ZERO = Decimal("0")
 MYT = timezone(timedelta(hours=8))
@@ -106,6 +106,7 @@ def property_start(p: Property, today: date) -> date:
     candidates = [t.start_date for t in property_tenancies(p)]
     candidates += [c.start_date for c in p.commitments if c.start_date]
     candidates += [e.spent_on for e in p.expenses]
+    candidates += [rc.received_on for t in property_tenancies(p) for rc in t.receipts]
     return month_start(min(candidates)) if candidates else month_start(today)
 
 
@@ -115,13 +116,14 @@ class MonthFlow:
     rent_expected: Decimal = ZERO
     rent_in: Decimal = ZERO
     utilities_in: Decimal = ZERO
+    fees_in: Decimal = ZERO
     utilities_cost: Decimal = ZERO
     commitments: Decimal = ZERO
     expenses: Decimal = ZERO
 
     @property
     def income(self) -> Decimal:
-        return self.rent_in + self.utilities_in
+        return self.rent_in + self.utilities_in + self.fees_in
 
     @property
     def outgo(self) -> Decimal:
@@ -135,6 +137,7 @@ class MonthFlow:
         self.rent_expected += o.rent_expected
         self.rent_in += o.rent_in
         self.utilities_in += o.utilities_in
+        self.fees_in += o.fees_in
         self.utilities_cost += o.utilities_cost
         self.commitments += o.commitments
         self.expenses += o.expenses
@@ -142,7 +145,7 @@ class MonthFlow:
     def as_dict(self) -> dict:
         return {"month": self.month.strftime("%Y-%m"), "rent_expected": f(self.rent_expected),
                 "rent_in": f(self.rent_in), "utilities_in": f(self.utilities_in),
-                "utilities_cost": f(self.utilities_cost), "commitments": f(self.commitments),
+                "fees_in": f(self.fees_in), "utilities_cost": f(self.utilities_cost), "commitments": f(self.commitments),
                 "expenses": f(self.expenses), "income": f(self.income), "outgo": f(self.outgo),
                 "net": f(self.net)}
 
@@ -154,9 +157,15 @@ def property_flows(p: Property, months: Iterable[date], today: date) -> list[Mon
     for t in tenancies:
         for r in t.records:
             by_month.setdefault(r.month, []).append((t, r))
+    fees_by_month: dict[date, Decimal] = {}
+    for t in tenancies:
+        for rc in t.receipts:
+            if not rc.is_deposit:
+                k = month_start(rc.received_on)
+                fees_by_month[k] = fees_by_month.get(k, ZERO) + d(rc.amount)
     out = []
     for m in months:
-        mf = MonthFlow(month=m)
+        mf = MonthFlow(month=m, fees_in=fees_by_month.get(m, ZERO))
         recorded = set()
         for t, r in by_month.get(m, []):
             recorded.add(t.id)
@@ -242,6 +251,7 @@ def property_stats(p: Property, today: date) -> dict:
     active_units = [u for u in p.units if u.active]
     occupied = {t.unit_id for t in live}
     arrears = sum((tenancy_balance(t, today).overdue for t in tenancies), ZERO)
+    held = sum((deposit_summary(t)["held"] for t in tenancies), ZERO)
 
     return {
         "cash_invested": f(cash_invested),
@@ -260,7 +270,7 @@ def property_stats(p: Property, today: date) -> dict:
         "to_date": {"income": f(to_date.income), "outgo": f(to_date.outgo), "net": f(to_date.net),
                     "rent_in": f(to_date.rent_in), "commitments": f(to_date.commitments),
                     "expenses": f(to_date.expenses), "utilities_cost": f(to_date.utilities_cost),
-                    "utilities_in": f(to_date.utilities_in)},
+                    "utilities_in": f(to_date.utilities_in), "fees_in": f(to_date.fees_in)},
         "payback_pct": pct(to_date.net, cash_invested),
         "appreciation": f(appreciation),
         "total_return_pct": pct(to_date.net + (appreciation or ZERO), cash_invested)
@@ -268,6 +278,7 @@ def property_stats(p: Property, today: date) -> dict:
         "units_active": len(active_units),
         "units_occupied": len([u for u in active_units if u.id in occupied]),
         "arrears": f(arrears),
+        "deposits_held": f(held),
     }
 
 
@@ -306,4 +317,29 @@ def portfolio(props: list[Property], today: date, months: int = 12) -> dict:
         "units_active": int(total("units_active")),
         "units_occupied": int(total("units_occupied")),
         "arrears": f(total("arrears")),
+        "deposits_held": f(total("deposits_held")),
     }
+
+
+def deposit_summary(t: Tenancy) -> dict:
+    """Deposits agreed on the tenancy against what was actually received.
+    held is what is still with the owner after any refund at move-out."""
+    agreed = {k: d(getattr(t, k)) for k in DEPOSIT_KINDS}
+    collected = {k: ZERO for k in DEPOSIT_KINDS}
+    for rc in t.receipts:
+        if rc.is_deposit:
+            collected[rc.kind] += d(rc.amount)
+    total_collected = sum(collected.values(), ZERO)
+    return {
+        "agreed": agreed, "collected": collected,
+        "total_agreed": sum(agreed.values(), ZERO), "total_collected": total_collected,
+        "pending": {k: max(ZERO, agreed[k] - collected[k]) for k in DEPOSIT_KINDS},
+        "held": max(ZERO, total_collected - d(t.deposit_returned)),
+    }
+
+
+def fees_summary(t: Tenancy) -> dict:
+    admin = sum((d(rc.amount) for rc in t.receipts if rc.kind == "admin_fee"), ZERO)
+    other = sum((d(rc.amount) for rc in t.receipts if rc.kind == "other_fee"), ZERO)
+    return {"admin_fee_agreed": d(t.admin_fee), "admin_fee_collected": admin,
+            "admin_fee_pending": max(ZERO, d(t.admin_fee) - admin), "other_fees_collected": other}

@@ -13,7 +13,7 @@ invite-only sign-up).
 | **Overview** | Rent per month, monthly commitment, net cashflow, cash-on-cash ROI, yield, payback, who owes, leases ending in 60 days, vacant units, 12-month cashflow chart |
 | **Rent & bills** | The monthly screen. One card per tenant: rent due/received, "Paid in full", electricity/water/internet/other, "Same as last month", tenant's utility repayment, WhatsApp reminder, "Mark everyone paid", "Save all", CSV export |
 | **Properties** | Purchase figures, units (whole unit or rooms), monthly/yearly commitments, one-off expenses, return breakdown since purchase |
-| **Tenants** | Contact details, IC/passport (encrypted), lease period, deposits, utilities arrangement, payment history, balance, move-out with deposit return |
+| **Tenants** | Contact details, IC/passport (encrypted), lease period, deposits and admin fees with a dated record of each one received, utilities arrangement, payment history, balance, move-out with deposit return |
 | **Settings** | Password, 2FA, signed-in devices, full CSV export |
 
 ### How the numbers are worked out
