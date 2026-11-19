@@ -49,6 +49,18 @@ For a private GitHub repo, clone it to `/var/www/LemonRent` yourself first; the 
 sudo bash /var/www/LemonRent/deploy/update.sh
 ```
 
+### Automatic deploy
+
+Every push to `main` runs the tests and, if they pass, runs `deploy/update.sh`
+on the server over SSH. Set these repository secrets (Settings → Secrets and
+variables → Actions) to turn it on; without them the deploy step is skipped.
+
+| Secret | Value |
+|---|---|
+| `DEPLOY_HOST` | The droplet's IP address |
+| `DEPLOY_USER` | SSH user (defaults to `root`) |
+| `DEPLOY_SSH_KEY` | A private key whose public half is in that user's `~/.ssh/authorized_keys` |
+
 ### Operator commands
 
 ```bash
