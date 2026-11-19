@@ -49,7 +49,7 @@ function waLink(phone: string, text: string) {
   return p ? `https://wa.me/${p}?text=${encodeURIComponent(text)}` : "";
 }
 
-function PayCard({ row, month, draft, dirty, onChange, onSave, saving }: { row: CollectRow; month: string; draft: Draft; dirty: boolean; onChange: (d: Draft) => void; onSave: () => void; saving: boolean }) {
+function PayCard({ row, month, draft, dirty, onChange, onSave, saving, focus }: { row: CollectRow; month: string; draft: Draft; dirty: boolean; onChange: (d: Draft) => void; onSave: () => void; saving: boolean; focus?: boolean }) {
   const set = (k: keyof Draft) => (v: string) => onChange({ ...draft, [k]: v });
   const due = totalDue(draft, row);
   const paid = totalPaid(draft, row);
@@ -62,7 +62,7 @@ function PayCard({ row, month, draft, dirty, onChange, onSave, saving }: { row: 
   const wa = row.tenant_phone && owingAll > 0 ? waLink(row.tenant_phone, msg) : "";
 
   return (
-    <div className={`pay ${status[1] === "Paid" ? "done" : status[1] === "Part paid" ? "part" : ""}`}>
+    <div id={`pay-${row.tenancy_id}`} className={`pay ${status[1] === "Paid" ? "done" : status[1] === "Part paid" ? "part" : ""}${focus ? " focus" : ""}`}>
       <div className="pay-head">
         <div style={{ minWidth: 0 }}>
           <Link to={`/tenants/${row.tenant_id}`}><b>{row.tenant_name}</b></Link>
@@ -137,6 +137,7 @@ function PayCard({ row, month, draft, dirty, onChange, onSave, saving }: { row: 
 export default function Collect() {
   const [params, setParams] = useSearchParams();
   const month = params.get("m") || thisMonth();
+  const focusId = Number(params.get("t")) || 0;
   const setMonth = (m: string) => setParams(m === thisMonth() ? {} : { m });
   const toast = useToast();
   const data = useLoad(() => api.get<{ month: string; rows: CollectRow[] }>(`/collect?month=${month}`), [month], 0, `/collect/${month}`);
@@ -150,6 +151,14 @@ export default function Collect() {
     setDrafts(Object.fromEntries(data.data.rows.map((r) => [r.tenancy_id, toDraft(r)])));
     setDirty({});
   }, [data.data, month]);
+
+  const ready = !!drafts[focusId];
+  useEffect(() => {
+    if (!focusId || !ready) return;
+    const el = document.getElementById(`pay-${focusId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+  }, [focusId, ready, month]);
 
   const rows = useMemo(() => (data.data?.month === month ? data.data.rows : []).filter((r) => prop === "all" || String(r.property_id) === prop), [data.data, month, prop]);
   const props = useMemo(() => {
@@ -252,7 +261,7 @@ export default function Collect() {
             {props.map(([id, n]) => <button key={id} className={prop === String(id) ? "on" : ""} onClick={() => setProp(String(id))}>{n}</button>)}
           </div>
         ) : <span />}
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {month !== thisMonth() && <button className="btn sm" onClick={() => setMonth(thisMonth())}>This month</button>}
           {rows.length > 0 && <button className="btn sm" onClick={allPaid}>Mark everyone paid in full</button>}
           <a className="btn sm" href={`/api/records.csv?year=${month.slice(0, 4)}`}>Export {month.slice(0, 4)} CSV</a>
@@ -283,6 +292,7 @@ export default function Collect() {
                 setDirty((x) => ({ ...x, [r.tenancy_id]: true }));
               }}
               onSave={() => saveOne(r)}
+              focus={r.tenancy_id === focusId}
             />
           ) : null,
         )}

@@ -75,6 +75,19 @@ export function Tenants() {
   );
 }
 
+function MonthLinks({ months, tid }: { months: string[]; tid: number }) {
+  return (
+    <>
+      {months.map((m, i) => (
+        <span key={m}>
+          {i > 0 && ", "}
+          <Link className="month-link" to={`/collect?m=${m}&t=${tid}`}>{monthLabel(m, false)}</Link>
+        </span>
+      ))}
+    </>
+  );
+}
+
 type ReceiptDlg = { r?: Receipt; kind?: ReceiptKind; amount?: number };
 
 const DEPOSIT_KINDS: DepositKind[] = ["security_deposit", "utility_deposit", "access_card_deposit"];
@@ -148,8 +161,8 @@ function TenancyCard({ t, onEdit, onEnd, onReceipt }: { t: Tenancy; onEdit: () =
           {t.deposit_returned !== null && <div className="muted tiny">Returned {money(t.deposit_returned)}</div>}</div>
         <div><div className="muted tiny">Balance</div>
           <div className={`num ${t.balance.outstanding > 0 ? "down" : "up"}`} style={{ fontWeight: 700 }}>{t.balance.outstanding > 0 ? money(t.balance.outstanding) : "Paid up"}</div>
-          {t.balance.overdue_months.length > 0 && <div className="tiny down">Overdue: {t.balance.overdue_months.map((m) => monthLabel(m, false)).join(", ")}</div>}
-          {t.balance.unrecorded_months.length > 0 && <div className="tiny muted">Not entered yet: {t.balance.unrecorded_months.map((m) => monthLabel(m, false)).join(", ")}</div>}</div>
+          {t.balance.overdue_months.length > 0 && <div className="tiny down">Overdue: <MonthLinks months={t.balance.overdue_months} tid={t.id} /></div>}
+          {t.balance.unrecorded_months.length > 0 && <div className="tiny muted">Not entered yet: <MonthLinks months={t.balance.unrecorded_months} tid={t.id} /></div>}</div>
       </div>
       {t.notes && <p className="muted tiny" style={{ whiteSpace: "pre-wrap" }}>{t.notes}</p>}
       <DepositsAndFees t={t} onReceipt={onReceipt} />
