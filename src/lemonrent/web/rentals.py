@@ -33,7 +33,7 @@ ReceiptKind = Literal["security_deposit", "utility_deposit", "access_card_deposi
 
 
 def _load_props(s: Session, user: User, pid: Optional[int] = None) -> list[Property]:
-    q = select(Property).where(Property.owner_id == user.id).order_by(Property.id)
+    q = select(Property).where(Property.owner_id == user.data_owner_id).order_by(Property.id)
     if pid is not None:
         q = q.where(Property.id == pid)
     q = (q
@@ -46,28 +46,28 @@ def _load_props(s: Session, user: User, pid: Optional[int] = None) -> list[Prope
 
 def _prop(s: Session, user: User, pid: int) -> Property:
     p = s.get(Property, pid)
-    if p is None or p.owner_id != user.id:
+    if p is None or p.owner_id != user.data_owner_id:
         raise HTTPException(404, "Property not found")
     return p
 
 
 def _unit(s: Session, user: User, uid: int) -> Unit:
     u = s.get(Unit, uid)
-    if u is None or u.property.owner_id != user.id:
+    if u is None or u.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Unit not found")
     return u
 
 
 def _tenant(s: Session, user: User, tid: int) -> Tenant:
     t = s.get(Tenant, tid)
-    if t is None or t.owner_id != user.id:
+    if t is None or t.owner_id != user.data_owner_id:
         raise HTTPException(404, "Tenant not found")
     return t
 
 
 def _tenancy(s: Session, user: User, tid: int) -> Tenancy:
     t = s.get(Tenancy, tid)
-    if t is None or t.unit.property.owner_id != user.id:
+    if t is None or t.unit.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Tenancy not found")
     return t
 
@@ -278,7 +278,7 @@ def list_properties(user: User = Depends(user_any), s: Session = Depends(get_ses
 def create_property(body: PropertyCreate, request: Request, user: User = Depends(user_any),
                     s: Session = Depends(get_session)):
     data = body.model_dump(exclude={"units", "commitments"})
-    p = Property(owner_id=user.id, **data)
+    p = Property(owner_id=user.data_owner_id, **data)
     units = body.units or [UnitIn(name="Whole unit")]
     p.units = [Unit(**u.model_dump()) for u in units]
     p.commitments = [Commitment(**c.model_dump()) for c in body.commitments]
@@ -463,7 +463,7 @@ def add_commitment(pid: int, body: CommitmentIn, user: User = Depends(user_any),
 def update_commitment(cid: int, body: CommitmentIn, user: User = Depends(user_any),
                       s: Session = Depends(get_session)):
     c = s.get(Commitment, cid)
-    if c is None or c.property.owner_id != user.id:
+    if c is None or c.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Commitment not found")
     for k, v in body.model_dump().items():
         setattr(c, k, v)
@@ -473,7 +473,7 @@ def update_commitment(cid: int, body: CommitmentIn, user: User = Depends(user_an
 @router.delete("/commitments/{cid}")
 def delete_commitment(cid: int, user: User = Depends(user_any), s: Session = Depends(get_session)):
     c = s.get(Commitment, cid)
-    if c is None or c.property.owner_id != user.id:
+    if c is None or c.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Commitment not found")
     s.delete(c)
     return {"ok": True}
@@ -493,7 +493,7 @@ def add_expense(pid: int, body: ExpenseIn, user: User = Depends(user_any),
 def update_expense(eid: int, body: ExpenseIn, user: User = Depends(user_any),
                    s: Session = Depends(get_session)):
     e = s.get(Expense, eid)
-    if e is None or e.property.owner_id != user.id:
+    if e is None or e.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Expense not found")
     for k, v in body.model_dump().items():
         setattr(e, k, v)
@@ -503,7 +503,7 @@ def update_expense(eid: int, body: ExpenseIn, user: User = Depends(user_any),
 @router.delete("/expenses/{eid}")
 def delete_expense(eid: int, user: User = Depends(user_any), s: Session = Depends(get_session)):
     e = s.get(Expense, eid)
-    if e is None or e.property.owner_id != user.id:
+    if e is None or e.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Expense not found")
     s.delete(e)
     return {"ok": True}
@@ -548,7 +548,7 @@ def tenant_dict(t: Tenant, today: date, detail: bool = False) -> dict:
 
 
 def _load_tenants(s: Session, user: User) -> list[Tenant]:
-    q = (select(Tenant).where(Tenant.owner_id == user.id).order_by(Tenant.name)
+    q = (select(Tenant).where(Tenant.owner_id == user.data_owner_id).order_by(Tenant.name)
          .options(selectinload(Tenant.tenancies).selectinload(Tenancy.records),
                   selectinload(Tenant.tenancies).selectinload(Tenancy.receipts),
                   selectinload(Tenant.tenancies).selectinload(Tenancy.unit).selectinload(Unit.property)))
@@ -563,7 +563,7 @@ def list_tenants(user: User = Depends(user_any), s: Session = Depends(get_sessio
 
 @router.post("/tenants")
 def create_tenant(body: TenantIn, user: User = Depends(user_any), s: Session = Depends(get_session)):
-    t = Tenant(owner_id=user.id, name=body.name)
+    t = Tenant(owner_id=user.data_owner_id, name=body.name)
     _apply_tenant(t, body)
     s.add(t)
     s.flush()
@@ -644,7 +644,7 @@ def create_tenancy(body: TenancyCreate, request: Request, user: User = Depends(u
     if body.tenant_id:
         tenant = _tenant(s, user, body.tenant_id)
     elif body.tenant:
-        tenant = Tenant(owner_id=user.id, name=body.tenant.name)
+        tenant = Tenant(owner_id=user.data_owner_id, name=body.tenant.name)
         _apply_tenant(tenant, body.tenant)
         s.add(tenant)
         s.flush()
@@ -697,7 +697,7 @@ class ReceiptIn(BaseModel):
 
 def _receipt(s: Session, user: User, rid: int) -> Receipt:
     rc = s.get(Receipt, rid)
-    if rc is None or rc.tenancy.unit.property.owner_id != user.id:
+    if rc is None or rc.tenancy.unit.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Receipt not found")
     return rc
 
@@ -847,7 +847,7 @@ def save_records(body: RecordBatch, user: User = Depends(user_any), s: Session =
 @router.delete("/records/{rid}")
 def delete_record(rid: int, user: User = Depends(user_any), s: Session = Depends(get_session)):
     r = s.get(MonthlyRecord, rid)
-    if r is None or r.tenancy.unit.property.owner_id != user.id:
+    if r is None or r.tenancy.unit.property.owner_id != user.data_owner_id:
         raise HTTPException(404, "Record not found")
     s.delete(r)
     return {"ok": True}

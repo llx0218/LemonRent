@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, Me } from "../api";
 import { useAuth } from "../auth";
 
@@ -121,7 +121,8 @@ export function Login() {
 export function Register() {
   const { setMe } = useAuth();
   const nav = useNavigate();
-  const [f, setF] = useState({ invite_code: "", name: "", email: "", password: "" });
+  const [params] = useSearchParams();
+  const [f, setF] = useState({ invite_code: (params.get("code") ?? "").toUpperCase().slice(0, 32), name: "", email: "", password: "" });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
@@ -144,7 +145,7 @@ export function Register() {
   return (
     <AuthLayout>
       <h1>Create your account</h1>
-      <p className="muted" style={{ margin: "0 0 24px" }}>LemonRent is invite only. Enter the code from the server.</p>
+      <p className="muted" style={{ margin: "0 0 24px" }}>LemonRent is invite only. Enter the invite code you were given.</p>
       <form onSubmit={submit}>
         <div className="field">
           <label htmlFor="inv">Invite code</label>

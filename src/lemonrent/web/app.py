@@ -22,10 +22,12 @@ from ..settings import get_settings
 from .auth import (check_throttle, clear_failures, client_ip, create_session, csrf_guard,
                    end_session, hash_password, record_failure, throttle_key, user_any,
                    verify_password, verify_totp)
+from .accounts import router as accounts_router
 from .rentals import router as rentals_router
 
 app = FastAPI(title="LemonRent API", docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(rentals_router)
+app.include_router(accounts_router)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -40,7 +42,8 @@ async def security_headers(request: Request, call_next):
 
 def me_dict(u: User) -> dict:
     return {"id": u.id, "email": u.email, "name": u.display_name or u.email.split("@")[0],
-            "role": u.role, "totp_enabled": u.totp_enabled, "currency": get_settings().currency}
+            "role": "user" if u.parent_id else u.role, "sub_account": u.parent_id is not None,
+            "totp_enabled": u.totp_enabled, "currency": get_settings().currency}
 
 
 @app.get("/api/health")
@@ -71,12 +74,18 @@ def register(body: RegisterIn, request: Request, response: Response,
         raise HTTPException(400, "Invite code is not valid")
     if s.scalar(select(User.id).where(User.email == email)) is not None:
         raise HTTPException(400, "An account with this email already exists")
-    user = User(email=email, display_name=body.name.strip(),
-                password_hash=hash_password(body.password), role=inv.role or "user")
+    if inv.parent_id is not None:
+        parent = s.get(User, inv.parent_id)
+        if parent is None or parent.disabled or parent.parent_id is not None:
+            record_failure(tkey)
+            raise HTTPException(400, "Invite code is not valid")
+    user = User(email=email, display_name=body.name.strip(), password_hash=hash_password(body.password),
+                role="user" if inv.parent_id else (inv.role or "user"), parent_id=inv.parent_id)
     s.add(user)
     s.flush()
     inv.used_by = user.id
     inv.used_at = utcnow()
+    user.last_login_at = inv.used_at
     audit(s, f"Registered with invite {inv.code}", user, client_ip(request))
     create_session(s, user, request, response)
     return me_dict(user)

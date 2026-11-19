@@ -5,6 +5,7 @@ import { useAuth } from "../auth";
 import Shell from "../components/Shell";
 import { useLoad, useToast } from "../components/ui";
 import { relTime } from "../format";
+import PeopleCard from "./People";
 
 function TwoFactorRow() {
   const { me, setMe } = useAuth();
@@ -119,10 +120,12 @@ function SecurityCard() {
 }
 
 export default function Settings() {
+  const { me } = useAuth();
   return (
-    <Shell title="Settings" sub="Your sign-in and security.">
+    <Shell title="Settings" sub="Your sign-in, security and who can use your account.">
       <div className="grid g2">
         <SecurityCard />
+        {me && !me.sub_account && <PeopleCard />}
         <div className="card" style={{ alignSelf: "start" }}>
           <h3>Export</h3>
           <p className="muted" style={{ marginTop: 0 }}>Download every rent and utility record as a spreadsheet (CSV), for your tax filing or accountant.</p>

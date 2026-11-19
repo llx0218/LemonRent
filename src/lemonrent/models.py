@@ -50,6 +50,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     totp_secret_enc: Mapped[Optional[str]] = mapped_column(Text)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -58,7 +59,11 @@ class User(Base):
 
     @property
     def is_admin(self) -> bool:
-        return self.role == "admin"
+        return self.role == "admin" and self.parent_id is None
+
+    @property
+    def data_owner_id(self) -> int:
+        return self.parent_id or self.id
 
 
 class WebSession(Base):
@@ -88,6 +93,8 @@ class Invite(Base):
     code: Mapped[str] = mapped_column(String(32), primary_key=True)
     note: Mapped[str] = mapped_column(String(120), default="")
     role: Mapped[str] = mapped_column(String(16), default="user", nullable=False)
+    created_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = _ts()
     used_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     used_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())

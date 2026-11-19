@@ -62,6 +62,16 @@ cd /var/www/LemonRent && sudo -u lemonrent git pull --ff-only && sudo bash deplo
 Log: `/var/log/lemonrent-autodeploy.log`. To turn it off:
 `sudo systemctl disable --now lemonrent-autodeploy.timer`.
 
+### People and sub-accounts
+
+Settings → People creates invite codes from the app. A **sub-account**
+signs in with its own email, password and 2FA, and sees and edits the
+owner's properties, tenants and rent. Sub-accounts can't invite anyone.
+Admins can also invite a **separate account**, which starts empty. The
+owner can turn a sub-account's access off or on; turning it off signs
+them out at once. Admin accounts can still only be created on the server
+with `lemonrent.cli invite --admin`.
+
 ### Operator commands
 
 ```bash

@@ -116,6 +116,10 @@ def user_any(request: Request, s: Session = Depends(get_session)) -> User:
     user = s.get(User, sess.user_id)
     if user is None or user.disabled:
         raise HTTPException(401, "Not signed in")
+    if user.parent_id is not None:
+        parent = s.get(User, user.parent_id)
+        if parent is None or parent.disabled:
+            raise HTTPException(401, "Not signed in")
     request.state.session_id = sess.id
     return user
 

@@ -84,8 +84,41 @@ export interface Me {
   email: string;
   name: string;
   role: "user" | "admin";
+  sub_account: boolean;
   totp_enabled: boolean;
   currency: string;
+}
+
+export interface AccountUser {
+  id: number;
+  name: string;
+  email: string;
+  role: "user" | "admin";
+  sub_account: boolean;
+  parent: string | null;
+  disabled: boolean;
+  totp: boolean;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface AccountInvite {
+  code: string;
+  note: string;
+  kind: "sub" | "separate";
+  role: string;
+  created_at: string;
+  used_by: string | null;
+  used_at: string | null;
+  revoked: boolean;
+}
+
+export interface Accounts {
+  can_invite_separate: boolean;
+  members: AccountUser[];
+  invites: AccountInvite[];
+  users?: AccountUser[];
+  audit?: { ts: string; actor: string; action: string }[];
 }
 
 export type UtilMode = "charged" | "included" | "tenant_direct";
