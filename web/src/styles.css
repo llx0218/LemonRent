@@ -271,8 +271,10 @@ tr.clickable:hover td{background:var(--surface2)}
 .bar-hit.on{fill:color-mix(in srgb,var(--accent) 16%,transparent)}
 .drag-handle{display:flex;align-items:center;justify-content:center;width:28px;height:36px;margin-left:-6px;color:var(--faint);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex:none}
 .unit-row.dragging{background:var(--surface2);border-radius:10px;box-shadow:var(--shadow);position:relative;z-index:2}
-.group-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:18px 2px 8px}
-.group-head h3{margin:0;font-size:16px}
+.group-head{margin:20px 0 10px;padding:0 4px}
+.group-head h3{margin:0;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.group-sub{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:3px;font-size:12.5px}
+.group-sub>:last-child{white-space:nowrap}
 .mini-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:4px}
 .mini-stats>div{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 10px;min-width:0}
 .mini-stats span{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
@@ -297,3 +299,5 @@ tr.clickable:hover td{background:var(--surface2)}
   .filters .seg{display:flex}
   .filters .seg button{flex:1;padding:7px 10px}
 }
+.pay-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:3px;font-size:12.5px}
+.pay-meta .unit{color:var(--text);font-weight:500}

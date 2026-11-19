@@ -102,7 +102,7 @@ def tenancy_dict(t: Tenancy, today: date, with_records: bool = False) -> dict:
     dep = fin.deposit_summary(t)
     fees = fin.fees_summary(t)
     out = {
-        "id": t.id, "unit_id": t.unit_id, "unit_name": t.unit.name,
+        "id": t.id, "unit_id": t.unit_id, "unit_name": t.unit.name, "room_type": room_type(t.unit),
         "property_id": t.unit.property_id, "property_name": t.unit.property.name,
         "tenant_id": t.tenant_id, "tenant_name": t.tenant.name, "tenant_phone": t.tenant.phone,
         "start_date": _ds(t.start_date), "end_date": _ds(t.end_date), "moved_out_on": _ds(t.moved_out_on),
@@ -139,12 +139,17 @@ def record_dict(r: MonthlyRecord, t: Tenancy) -> dict:
     }
 
 
+def room_type(u: Unit) -> str:
+    text = (u.notes or "").strip()
+    return text.splitlines()[0].strip()[:60] if text else ""
+
+
 def unit_dict(u: Unit, today: date) -> dict:
     current = next((t for t in u.tenancies if fin.tenancy_active_on(t, today)), None)
     upcoming = next((t for t in sorted(u.tenancies, key=lambda x: x.start_date)
                      if t.start_date > today), None)
     return {"id": u.id, "property_id": u.property_id, "property_name": u.property.name,
-            "name": u.name, "target_rent": fin.f(u.target_rent), "active": u.active, "notes": u.notes,
+            "name": u.name, "room_type": room_type(u), "target_rent": fin.f(u.target_rent), "active": u.active, "notes": u.notes,
             "current": tenancy_dict(current, today) if current else None,
             "upcoming": tenancy_dict(upcoming, today) if upcoming else None,
             "tenancy_count": len(u.tenancies)}
@@ -789,7 +794,7 @@ def collect(month: Optional[str] = None, user: User = Depends(user_any),
                 prev = next((r for r in t.records if r.month == prev_m), None)
                 rows.append({
                     "tenancy_id": t.id, "tenant_id": t.tenant_id, "tenant_name": t.tenant.name,
-                    "tenant_phone": t.tenant.phone, "unit_name": u.name, "property_id": p.id,
+                    "tenant_phone": t.tenant.phone, "unit_name": u.name, "room_type": room_type(u), "property_id": p.id,
                     "property_name": p.name, "monthly_rent": fin.f(t.monthly_rent),
                     "rent_due_day": t.rent_due_day, "utilities_mode": t.utilities_mode,
                     "record": record_dict(rec, t) if rec else None,

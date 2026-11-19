@@ -221,7 +221,7 @@ export function PropertyDetail() {
             <div key={u.id} ref={(el) => { rowRefs.current[u.id] = el; }} className={`unit-row${dragId === u.id ? " dragging" : ""}`} style={{ opacity: u.active ? 1 : 0.55 }}>
               {d.units.length > 1 && <span className="drag-handle" aria-label={`Drag to reorder ${u.name}`} onPointerDown={(e) => startDrag(u.id, e)}>⠿</span>}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{u.name} {!u.active && <span className="pill gray">Inactive</span>}</div>
+                <div style={{ fontWeight: 600 }}>{u.name} {u.room_type && <span className="pill acc">{u.room_type}</span>} {!u.active && <span className="pill gray">Inactive</span>}</div>
                 {u.current ? (
                   <div className="muted tiny">
                     <Link className="link" to={`/tenants/${u.current.tenant_id}`}>{u.current.tenant_name}</Link> · {money(u.current.monthly_rent)}/mo · {period(u.current.start_date, u.current.end_date)}

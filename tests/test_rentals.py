@@ -276,3 +276,14 @@ def test_property_photo(owner, client):
     register(client, email="other2@example.com", code="RENT-TEST-0002")
     assert client.get(f"/api/properties/{pid}/photo").status_code == 404
     assert client.put(f"/api/properties/{pid}/photo", headers=H, content=jpeg).status_code == 404
+
+
+def test_room_type_comes_from_unit_notes(owner):
+    pid = owner.post("/api/properties", headers=H, json={"name": "Rooms", "units": [
+        {"name": "H1-01", "notes": "  Master room\nwith balcony"}, {"name": "H1-02"}]}).json()["id"]
+    units = owner.get(f"/api/properties/{pid}").json()["units"]
+    assert [u["room_type"] for u in units] == ["Master room", ""]
+    owner.post("/api/tenancies", headers=H, json={"unit_id": units[0]["id"], "start_date": "2026-11-01",
+                                                  "monthly_rent": 900, "tenant": {"name": "M"}})
+    rows = owner.get("/api/collect?month=2026-11").json()["rows"]
+    assert [r["room_type"] for r in rows if r["tenant_name"] == "M"] == ["Master room"]

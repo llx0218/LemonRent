@@ -168,6 +168,7 @@ export interface Tenancy {
   id: number;
   unit_id: number;
   unit_name: string;
+  room_type: string;
   property_id: number;
   property_name: string;
   tenant_id: number;
@@ -257,6 +258,7 @@ export interface Unit {
   property_id: number;
   property_name: string;
   name: string;
+  room_type: string;
   target_rent: number;
   active: boolean;
   notes: string;
@@ -390,6 +392,7 @@ export interface CollectRow {
   tenant_name: string;
   tenant_phone: string;
   unit_name: string;
+  room_type: string;
   property_id: number;
   property_name: string;
   monthly_rent: number;

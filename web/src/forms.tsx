@@ -106,10 +106,12 @@ export function PropertyForm({ p, onClose, onSaved }: { p?: PropertyBase; onClos
   );
 }
 
+const ROOM_TYPES = ["Master room", "Medium room", "Small room", "Single room", "Studio", "Whole unit", "Car park"];
+
 export function UnitForm({ propertyId, u, onClose, onSaved }: { propertyId: number; u?: Unit; onClose: Done; onSaved: Done }) {
   const { f, set, ev } = useForm({ name: u?.name ?? "", target_rent: str(u?.target_rent), active: u?.active ?? true, notes: u?.notes ?? "" });
   const s = useSubmit(async () => {
-    const body = { ...f, target_rent: num(f.target_rent) };
+    const body = { ...f, notes: f.notes.trim(), target_rent: num(f.target_rent) };
     if (u) await api.put(`/units/${u.id}`, body);
     else await api.post(`/properties/${propertyId}/units`, body);
     onSaved();
@@ -127,10 +129,15 @@ export function UnitForm({ propertyId, u, onClose, onSaved }: { propertyId: numb
     <Modal title={u ? "Edit unit" : "Add a unit"} sub="A unit is anything you rent out on its own: the whole apartment, a room, a parking bay." onClose={onClose}>
       <form onSubmit={s.submit}>
         <div className="f2">
-          <Field label="Name"><input className="input" required autoFocus value={f.name} onChange={ev("name")} placeholder="Master room" /></Field>
-          <Field label="Asking rent / month"><MoneyInput value={f.target_rent} onChange={set("target_rent")} /></Field>
+          <Field label="Name"><input className="input" required autoFocus value={f.name} onChange={ev("name")} placeholder="SRD-H1-02" /></Field>
+          <Field label="Room type" hint="Pick one or type your own">
+            <input className="input" list="room-types" value={f.notes} onChange={ev("notes")} placeholder="Master room" />
+            <datalist id="room-types">
+              {ROOM_TYPES.map((r) => <option key={r} value={r} />)}
+            </datalist>
+          </Field>
         </div>
-        <Field label="Notes"><textarea className="input" value={f.notes} onChange={ev("notes")} /></Field>
+        <Field label="Asking rent / month"><MoneyInput value={f.target_rent} onChange={set("target_rent")} /></Field>
         {u && (
           <label className="check" style={{ cursor: "pointer" }}>
             <input type="checkbox" checked={f.active} onChange={(e) => set("active")(e.target.checked)} />

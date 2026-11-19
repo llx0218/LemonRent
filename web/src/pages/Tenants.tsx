@@ -57,7 +57,7 @@ export function Tenants() {
                   {rows.map((t) => (
                     <tr key={t.id} className="clickable" onClick={() => nav(`/tenants/${t.id}`)}>
                       <td><div style={{ fontWeight: 600 }}>{t.name}</div><div className="muted tiny">{t.phone}</div></td>
-                      <td>{t.current ? <>{t.current.unit_name}<div className="muted tiny">{t.current.property_name}</div></> : <span className="muted">—</span>}</td>
+                      <td>{t.current ? <>{t.current.unit_name}{t.current.room_type && <span className="muted"> · {t.current.room_type}</span>}<div className="muted tiny">{t.current.property_name}</div></> : <span className="muted">—</span>}</td>
                       <td>{t.current ? period(t.current.start_date, t.current.end_date) : "—"}</td>
                       <td className="r num">{t.current ? money(t.current.monthly_rent) : "—"}</td>
                       <td><StatusPill status={t.status} /></td>
@@ -71,7 +71,7 @@ export function Tenants() {
               {rows.map((t) => (
                 <Link key={t.id} to={`/tenants/${t.id}`} className="mcard">
                   <div className="row"><b>{t.name}</b><StatusPill status={t.status} /></div>
-                  {t.current && <div className="row"><span className="muted tiny">{t.current.property_name} / {t.current.unit_name}</span><span className="num">{money(t.current.monthly_rent)}</span></div>}
+                  {t.current && <div className="row"><span className="muted tiny">{t.current.property_name} / {t.current.unit_name}{t.current.room_type ? ` · ${t.current.room_type}` : ""}</span><span className="num">{money(t.current.monthly_rent)}</span></div>}
                   <div className="row"><span className="muted tiny">{t.current ? period(t.current.start_date, t.current.end_date) : t.phone}</span>
                     <span className={`num tiny ${t.outstanding > 0 ? "down" : "muted"}`}>{t.outstanding > 0 ? `owes ${money(t.outstanding)}` : "paid up"}</span></div>
                 </Link>
@@ -152,7 +152,7 @@ function TenancyCard({ t, onEdit, onEnd, onReceipt }: { t: Tenancy; onEdit: () =
     <div className="card mt">
       <h3>
         <span>
-          <Link className="link" to={`/properties/${t.property_id}`}>{t.property_name}</Link> / {t.unit_name} <StatusPill status={t.status} />
+          <Link className="link" to={`/properties/${t.property_id}`}>{t.property_name}</Link> / {t.unit_name} {t.room_type && <span className="pill acc">{t.room_type}</span>} <StatusPill status={t.status} />
         </span>
         <span style={{ display: "flex", gap: 6 }}>
           {t.status === "active" && <button className="btn sm" onClick={onEnd}>Moving out</button>}

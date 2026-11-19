@@ -64,17 +64,21 @@ function PayCard({ row, month, draft, dirty, onChange, onSave, saving, focus }: 
   return (
     <div id={`pay-${row.tenancy_id}`} className={`pay ${status[1] === "Paid" ? "done" : status[1] === "Part paid" ? "part" : ""}${focus ? " focus" : ""}`}>
       <div className="pay-head">
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <Link to={`/tenants/${row.tenant_id}`}><b>{row.tenant_name}</b></Link>
-          <div className="muted tiny">
-            {row.property_name} / {row.unit_name} · due on day {row.rent_due_day}
+          <div className="pay-meta">
+            <span className="unit">{row.unit_name}</span>
+            {row.room_type && <span className="pill acc">{row.room_type}</span>}
+            <span className="muted">due on day {row.rent_due_day}</span>
           </div>
+          {(row.previous_balance > 0.004 || row.previous_balance < -0.004) && (
+            <div style={{ marginTop: 6 }}>
+              {row.previous_balance > 0.004 && <span className="pill down">Owes {money(row.previous_balance)} from before</span>}
+              {row.previous_balance < -0.004 && <span className="pill up">Credit {money(-row.previous_balance)}</span>}
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {row.previous_balance > 0.004 && <span className="pill down">Owes {money(row.previous_balance)} from before</span>}
-          {row.previous_balance < -0.004 && <span className="pill up">Credit {money(-row.previous_balance)}</span>}
-          <span className={`pill ${status[0]}`}>{status[1]}</span>
-        </div>
+        <span className={`pill ${status[0]}`} style={{ flex: "none" }}>{status[1]}</span>
       </div>
       <div className="pay-grid">
         <div className="pay-box">
@@ -295,8 +299,11 @@ export default function Collect() {
           return (
             <div key={pid} className="pay-group">
               <div className="group-head">
-                <h3>{name} <span className="muted tiny">{list.length} tenant{list.length === 1 ? "" : "s"}</span></h3>
-                <span className="num tiny"><span className="up">{money(g.paid)}</span> <span className="muted">of {money(g.due)}</span></span>
+                <h3>{name}</h3>
+                <div className="group-sub">
+                  <span className="muted">{list.length} tenant{list.length === 1 ? "" : "s"}</span>
+                  <span className="num"><span className="up">{money(g.paid)}</span> <span className="muted">of {money(g.due)}</span></span>
+                </div>
               </div>
               <div className="grid">
         {list.map((r) =>
