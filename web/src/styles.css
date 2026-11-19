@@ -310,3 +310,5 @@ input.input::-webkit-datetime-edit{padding:0}
   .input,.select{font-size:16px}
   input.input,select.select{min-height:44px}
 }
+.unit-row>div:not(.prop-hero-actions){min-width:0;flex:1 1 auto}
+.unit-row>.num,.unit-row>span.num:last-child{flex:none;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
