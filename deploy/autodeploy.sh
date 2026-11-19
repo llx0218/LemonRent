@@ -6,9 +6,9 @@ BRANCH=main
 LOG=/var/log/lemonrent-autodeploy.log
 
 sudo -u lemonrent env GIT_TERMINAL_PROMPT=0 git -C "$APP_DIR" fetch -q origin "$BRANCH"
-LOCAL=$(sudo -u lemonrent git -C "$APP_DIR" rev-parse HEAD)
+DEPLOYED=$(cat /var/lib/lemonrent/deployed-sha 2>/dev/null || true)
 REMOTE=$(sudo -u lemonrent git -C "$APP_DIR" rev-parse "origin/$BRANCH")
-[ "$LOCAL" = "$REMOTE" ] && exit 0
+[ "$DEPLOYED" = "$REMOTE" ] && exit 0
 
 STATE=$(curl -fsS -H "Accept: application/vnd.github+json" \
   "https://api.github.com/repos/$REPO/commits/$REMOTE/check-runs" \
