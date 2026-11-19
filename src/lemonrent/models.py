@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text,
+from sqlalchemy import (Boolean, Date, DateTime, ForeignKey, Integer, LargeBinary, Numeric, String, Text,
                         UniqueConstraint)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
@@ -119,6 +119,7 @@ class Property(Base):
     loan_amount: Mapped[Decimal] = _money()
     current_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     notes: Mapped[str] = mapped_column(Text, default="")
+    photo_version: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = _ts()
 
     units: Mapped[list["Unit"]] = relationship(back_populates="property", cascade="all, delete-orphan",
@@ -285,3 +286,11 @@ class Receipt(Base):
     @property
     def is_deposit(self) -> bool:
         return self.kind in DEPOSIT_KINDS
+
+
+class PropertyPhoto(Base):
+    __tablename__ = "property_photos"
+
+    property_id: Mapped[int] = mapped_column(ForeignKey("properties.id", ondelete="CASCADE"), primary_key=True)
+    mime: Mapped[str] = mapped_column(String(24), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)

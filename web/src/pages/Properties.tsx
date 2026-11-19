@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, Commitment, Expense, PropertyDetail as PD, PropertySummary, Unit } from "../api";
+import { api, Commitment, Expense, PropertyDetail as PD, PropertySummary, Unit, uploadPhoto } from "../api";
 import { Icon } from "../components/icons";
 import Shell from "../components/Shell";
 import { Bars, Empty, Skeleton, useLoad, useToast } from "../components/ui";
@@ -21,7 +21,8 @@ export function Properties() {
       )}
       <div className="grid g2">
         {list.data?.map((p) => (
-          <Link key={p.id} to={`/properties/${p.id}`} className="card prop-card">
+          <Link key={p.id} to={`/properties/${p.id}`} className={`card prop-card${p.photo ? " has-photo" : ""}`}>
+            {p.photo && <div className="prop-photo" style={{ backgroundImage: `url("${p.photo}")` }} />}
             <div className="row">
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>{p.name}</div>
@@ -68,6 +69,8 @@ export function PropertyDetail() {
   const p = useLoad(() => api.get<PD>(`/properties/${id}`), [id], 0, `/properties/${id}`);
   const [dlg, setDlg] = useState<Dlg>(null);
   const [pick, setPick] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [order, setOrder] = useState<number[] | null>(null);
   const [dragId, setDragId] = useState<number | null>(null);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -86,6 +89,26 @@ export function PropertyDetail() {
       toast(e instanceof Error ? e.message : "Could not save the order");
       setOrder(null);
     }
+  };
+
+  const onPhoto = async (f: File | undefined) => {
+    if (!f || !p.data) return;
+    setUploading(true);
+    try {
+      await uploadPhoto(p.data.id, f);
+      toast("Photo updated");
+      p.reload();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+  const removePhoto = async () => {
+    if (!p.data || !confirm("Remove this photo?")) return;
+    await api.del(`/properties/${p.data.id}/photo`);
+    p.reload();
   };
 
   const startDrag = (uid: number, ev: React.PointerEvent) => {
@@ -133,6 +156,13 @@ export function PropertyDetail() {
   return (
     <Shell title={d.name} sub={d.address || (d.purchase_date ? `Owned since ${day(d.purchase_date)}` : undefined)}
       actions={<button className="btn" onClick={() => setDlg({ k: "edit" })}><Icon.edit />Edit</button>}>
+      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => onPhoto(e.target.files?.[0])} />
+      <div className={`prop-hero${d.photo ? "" : " empty"}`} style={d.photo ? { backgroundImage: `url("${d.photo}")` } : undefined}>
+        <div className="prop-hero-actions">
+          <button className="btn sm" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Uploading…" : d.photo ? "Change photo" : "Add photo"}</button>
+          {d.photo && !uploading && <button className="btn sm" onClick={removePhoto}>Remove</button>}
+        </div>
+      </div>
       <div className="grid g4">
         <div className="card stat"><div className="label">Net cashflow / month</div><div className={`value num ${cls(st.expected_net_monthly)}`}>{money(st.expected_net_monthly, { sign: true })}</div>
           <div className="sub muted">{money(st.rent_now)} rent − {money(st.commitment_monthly)} commitments</div></div>

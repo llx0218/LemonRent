@@ -250,3 +250,29 @@ def test_unit_order_and_cashflow_detail(owner):
 
     tl = {t["name"]: t for t in owner.get("/api/tenants").json()}
     assert tl["K"]["properties"] == [[pid, "Block"]]
+
+
+def test_property_photo(owner, client):
+    pid = owner.post("/api/properties", headers=H, json={"name": "Pic"}).json()["id"]
+    assert owner.get(f"/api/properties/{pid}").json()["photo"] is None
+    jpeg = b"\xff\xd8\xff\xe0" + b"0" * 200
+    r = owner.put(f"/api/properties/{pid}/photo", headers={**H, "Content-Type": "image/jpeg"}, content=jpeg)
+    assert r.status_code == 200
+    url = owner.get(f"/api/properties/{pid}").json()["photo"]
+    assert url.endswith("?v=1")
+    g = owner.get(url)
+    assert g.status_code == 200 and g.content == jpeg and g.headers["content-type"] == "image/jpeg"
+    assert owner.put(f"/api/properties/{pid}/photo", headers={**H, "Content-Type": "text/html"},
+                     content=b"<html>").status_code == 415
+    assert owner.put(f"/api/properties/{pid}/photo", headers=H,
+                     content=b"\xff\xd8\xff" + b"0" * (3 * 1024 * 1024)).status_code == 413
+    owner.put(f"/api/properties/{pid}/photo", headers=H, content=b"\x89PNG\r\n\x1a\n" + b"1" * 50)
+    assert owner.get(f"/api/properties/{pid}").json()["photo"].endswith("?v=2")
+    assert owner.get("/api/properties").json()[0]["photo"].endswith("?v=2")
+    assert owner.delete(f"/api/properties/{pid}/photo", headers=H).status_code == 200
+    assert owner.get(f"/api/properties/{pid}").json()["photo"] is None
+    owner.put(f"/api/properties/{pid}/photo", headers=H, content=jpeg)
+    owner.post("/api/auth/logout", headers=H)
+    register(client, email="other2@example.com", code="RENT-TEST-0002")
+    assert client.get(f"/api/properties/{pid}/photo").status_code == 404
+    assert client.put(f"/api/properties/{pid}/photo", headers=H, content=jpeg).status_code == 404

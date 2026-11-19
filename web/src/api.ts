@@ -39,6 +39,39 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+export async function shrinkImage(file: File, max = 1600): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, fail) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => fail(new Error("That file isn't a photo the browser can open"));
+      i.src = url;
+    });
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("Could not process the photo"))), "image/jpeg", 0.82));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function uploadPhoto(propertyId: number, file: File): Promise<string> {
+  const blob = await shrinkImage(file);
+  const res = await fetch(`/api/properties/${propertyId}/photo`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "X-LemonRent": "1", "Content-Type": "image/jpeg" },
+    body: blob,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, typeof data?.detail === "string" ? data.detail : "Upload failed", data?.detail);
+  return data.photo;
+}
+
 export const api = {
   get: <T,>(p: string) => request<T>("GET", p),
   post: <T,>(p: string, b?: unknown) => request<T>("POST", p, b ?? {}),
@@ -229,6 +262,7 @@ export interface PropertyBase {
   loan_amount: number;
   current_value: number | null;
   notes: string;
+  photo: string | null;
   stats: Stats;
 }
 

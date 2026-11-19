@@ -11,7 +11,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import Path as PathParam
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session, selectinload
 from .. import finance as fin
 from ..crypto import decrypt, encrypt
 from ..db import get_session, utcnow
-from ..models import (DEPOSIT_KINDS, Commitment, Expense, MonthlyRecord, Property, Receipt, Tenancy,
-                      Tenant, Unit, User)
+from ..models import (DEPOSIT_KINDS, Commitment, Expense, MonthlyRecord, Property, PropertyPhoto, Receipt,
+                      Tenancy, Tenant, Unit, User)
 from ..services import audit
 from .auth import client_ip, user_any
 
@@ -167,6 +167,7 @@ def property_dict(p: Property, today: date, detail: bool = False) -> dict:
         "purchase_price": fin.f(p.purchase_price), "down_payment": fin.f(p.down_payment),
         "upfront_costs": fin.f(p.upfront_costs), "loan_amount": fin.f(p.loan_amount),
         "current_value": fin.f(p.current_value), "notes": p.notes,
+        "photo": f"/api/properties/{p.id}/photo?v={p.photo_version}" if p.photo_version else None,
         "stats": fin.property_stats(p, today),
     }
     if detail:
@@ -330,6 +331,62 @@ def add_unit(pid: int, body: UnitIn, user: User = Depends(user_any), s: Session 
     s.add(u)
     s.flush()
     return {"id": u.id}
+
+
+PHOTO_MAX = 3 * 1024 * 1024
+
+
+def _sniff_image(b: bytes) -> Optional[str]:
+    if b[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@router.put("/properties/{pid}/photo")
+async def upload_photo(pid: int, request: Request, user: User = Depends(user_any),
+                       s: Session = Depends(get_session)):
+    p = _prop(s, user, pid)
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "No photo received")
+    if len(data) > PHOTO_MAX:
+        raise HTTPException(413, "Photo is too large (max 3 MB)")
+    mime = _sniff_image(data)
+    if not mime:
+        raise HTTPException(415, "Use a JPEG, PNG or WebP photo")
+    ph = s.get(PropertyPhoto, p.id)
+    if ph is None:
+        s.add(PropertyPhoto(property_id=p.id, mime=mime, data=data))
+    else:
+        ph.mime, ph.data = mime, data
+    p.photo_version = (p.photo_version or 0) + 1
+    s.flush()
+    return {"photo": f"/api/properties/{p.id}/photo?v={p.photo_version}"}
+
+
+@router.delete("/properties/{pid}/photo")
+def delete_photo(pid: int, user: User = Depends(user_any), s: Session = Depends(get_session)):
+    p = _prop(s, user, pid)
+    ph = s.get(PropertyPhoto, p.id)
+    if ph is not None:
+        s.delete(ph)
+    p.photo_version = None
+    return {"ok": True}
+
+
+@router.get("/properties/{pid}/photo")
+def get_photo(pid: int, user: User = Depends(user_any), s: Session = Depends(get_session)):
+    p = _prop(s, user, pid)
+    ph = s.get(PropertyPhoto, p.id)
+    if ph is None:
+        raise HTTPException(404, "No photo")
+    return Response(content=ph.data, media_type=ph.mime,
+                    headers={"Cache-Control": "private, max-age=31536000, immutable",
+                             "X-Content-Type-Options": "nosniff"})
 
 
 class UnitOrderIn(BaseModel):
