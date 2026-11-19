@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, CollectRow, Rec } from "../api";
+import { api, CollectRow, PropertySummary, Rec } from "../api";
 import { Icon } from "../components/icons";
 import Shell from "../components/Shell";
 import { Empty, Field, MoneyInput, num, Skeleton, useLoad, useToast } from "../components/ui";
@@ -169,11 +169,13 @@ export default function Collect() {
     });
     return Array.from(m.values());
   }, [rows]);
+  const propList = useLoad(() => api.get<PropertySummary[]>("/properties"), [], 0, "/properties");
   const props = useMemo(() => {
     const m = new Map<number, string>();
+    (propList.data ?? []).forEach((p) => m.set(p.id, p.name));
     (data.data?.rows ?? []).forEach((r) => m.set(r.property_id, r.property_name));
     return [...m.entries()];
-  }, [data.data]);
+  }, [propList.data, data.data]);
 
   const body = (r: CollectRow, d: Draft) => ({
     tenancy_id: r.tenancy_id,
@@ -244,10 +246,18 @@ export default function Collect() {
       title="Rent & bills"
       sub="Enter what each tenant owed and paid this month."
       actions={
-        <div className="month-nav">
-          <button className="iconbtn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month"><Icon.left /></button>
-          <span className="lbl">{monthLabel(month)}</span>
-          <button className="iconbtn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month"><Icon.right /></button>
+        <div className="collect-actions">
+          {props.length > 0 && (
+            <select className="select prop-pick" value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
+              <option value="all">All properties</option>
+              {props.map(([id, n]) => <option key={id} value={String(id)}>{n}</option>)}
+            </select>
+          )}
+          <div className="month-nav">
+            <button className="iconbtn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month"><Icon.left /></button>
+            <span className="lbl">{monthLabel(month)}</span>
+            <button className="iconbtn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month"><Icon.right /></button>
+          </div>
         </div>
       }
     >
@@ -263,12 +273,6 @@ export default function Collect() {
       </div>
 
       <div className="row mt" style={{ flexWrap: "wrap" }}>
-        {props.length > 1 ? (
-          <select className="select" style={{ width: "auto" }} value={prop} onChange={(e) => setProp(e.target.value)} aria-label="Property">
-            <option value="all">All properties</option>
-            {props.map(([id, n]) => <option key={id} value={String(id)}>{n}</option>)}
-          </select>
-        ) : <span />}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {month !== thisMonth() && <button className="btn sm" onClick={() => setMonth(thisMonth())}>This month</button>}
           {rows.length > 0 && <button className="btn sm" onClick={allPaid}>Mark everyone paid in full</button>}

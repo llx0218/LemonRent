@@ -281,3 +281,6 @@ tr.clickable:hover td{background:var(--surface2)}
 .prop-hero.empty .prop-hero-actions{position:static;padding:10px;justify-content:flex-start}
 .prop-hero:not(.empty) .btn{background:rgba(18,38,58,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 @media (max-width:860px){.prop-hero{height:160px}.prop-photo{height:110px;margin:0 -15px 12px}}
+.collect-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.prop-pick{width:auto;max-width:240px}
+@media (max-width:860px){.collect-actions{justify-content:flex-start;width:100%}.prop-pick{flex:1 1 100%;max-width:none}}
